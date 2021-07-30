@@ -1,14 +1,18 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.Service;
-import org.eclipse.jetty.server.Server;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
+import org.eclipse.jetty.server.Server;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Properties;
 
 import static com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils.*;
@@ -55,7 +59,7 @@ public class UsersService implements Service {
         // TODO: Close streams
         // TODO: Close producer
 
-        if(jettyServer != null) {
+        if (jettyServer != null) {
             try {
                 jettyServer.stop();
             } catch (final Exception e) {
@@ -66,6 +70,7 @@ public class UsersService implements Service {
 
     /**
      * Handler for GET requests
+     *
      * @return response in plaintext format
      */
     @GET
@@ -80,17 +85,25 @@ public class UsersService implements Service {
      * @param args command line arguments
      */
     public static void main(String[] args) throws Exception {
-        // TODO: Add CLI options
+        // Parse command line arguments
+        final Options opts = createWebServiceOptions();
+        final CommandLine cli = new DefaultParser().parse(opts, args);
+        // Handle help text
+        if (cli.hasOption("h")) {
+            new HelpFormatter().printHelp("Users Service", opts);
+            return;
+        }
 
-        final String bootstrapServers = DEFAULT_BOOTSTRAP_SERVERS;
-        final String restHostname = "localhost";
-        final int restPort = 80;
-        final String stateDir = "/tmp/kafka-streams";
-
-        final Properties defaultConfig = new Properties();
-
+        // Get the config options or set defaults
+        final String bootstrapServers = cli.getOptionValue("bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS);
+        final String restHostname = cli.getOptionValue("hostname", "localhost");
+        final int restPort = Integer.parseInt(cli.getOptionValue("port", "80"));
+        final String stateDir = cli.getOptionValue("state-dir", "/tmp/kafka-streams");
+        final Properties defaultConfig =
+                buildPropertiesFromConfigFile(cli.getOptionValue("config-file", null));
         // TODO: Add schema registry URL, if we're ever going to use it
 
+        // Create and start the service
         final UsersService service = new UsersService(restHostname, restPort);
         service.start(bootstrapServers, stateDir, defaultConfig);
         addShutdownHookAndBlock(service);
