@@ -31,3 +31,24 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_JMX_PORT: 9101
       KAFKA_JMX_HOSTNAME: localhost
+
+  users-service:
+    image: fuljo/pub-sub-delivered
+    hostname: users-service
+    container_name: users-service
+    depends_on:
+      - broker
+    environment:
+      APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.users.UsersService
+      APP_ARGS: " "
+
+  web:
+    image: caddy:alpine
+    hostname: web
+    container_name: web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./web:/srv

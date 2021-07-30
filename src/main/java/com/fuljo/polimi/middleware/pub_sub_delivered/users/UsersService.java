@@ -13,7 +13,7 @@ import java.util.Properties;
 
 import static com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils.*;
 
-@Path("users")
+@Path("api/users")
 public class UsersService implements Service {
 
     public static final Logger log = LoggerFactory.getLogger(UsersService.class);
