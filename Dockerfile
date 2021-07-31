@@ -1,7 +1,7 @@
 ARG ALPINE_VERSION=3.13
 FROM alpine:${ALPINE_VERSION}
 
-ARG JAVA_VERSION=11
+ARG JAVA_VERSION=8
 
 # Parameters for the JVM
 ENV JVM_OPTS=""
@@ -20,7 +20,6 @@ WORKDIR ${APP_DIR}
 # Copy the POM and download dependencies, determine name of the JAR and persist it at runtime
 COPY pom.xml ./
 RUN mvn dependency:copy-dependencies && \
-    mvn verify && \
     BUILD_DIR=$(mvn help:evaluate -Dexpression=project.build.directory -q -DforceStdout) && \
     JAR_NAME=$(mvn help:evaluate -Dexpression=project.build.finalName -q -DforceStdout) && \
     echo APP_JAR_LOCATION="$BUILD_DIR/$JAR_NAME.jar" > .env && \

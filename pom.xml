@@ -32,23 +32,23 @@
     </pluginRepositories>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!-- Kafka -->
-        <kafka.version>2.5.0</kafka.version>
+        <kafka.version>2.8.0</kafka.version>
         <kafka.scala.version>2.13</kafka.scala.version>
         <conflutent.platform.version>6.2.0</conflutent.platform.version>
 
-        <!-- Jakarta -->
-        <jakarta.ws-rs.version>3.0.0</jakarta.ws-rs.version>
-        <jakarta.activation.version>2.0.1</jakarta.activation.version>
+        <!-- JAX -->
+        <javax.ws.rs.version>2.1.1</javax.ws.rs.version>
+        <javax.activation.version>1.2.0</javax.activation.version>
         <!-- Jetty -->
-        <jetty.version>11.0.6</jetty.version>
+        <jetty.version>9.4.43.v20210629</jetty.version>
         <!-- Jersey -->
-        <jersey.version>3.0.2</jersey.version>
+        <jersey.version>2.34</jersey.version>
         <!-- Jackson -->
         <jackson.version>2.12.4</jackson.version>
         <!-- Commons CLI -->
@@ -70,16 +70,16 @@
             <version>${kafka.version}</version>
         </dependency>
 
-        <!-- Restful APIs (Java EE) -->
+        <!-- JAX-RS and activation -->
         <dependency>
-            <groupId>jakarta.ws.rs</groupId>
-            <artifactId>jakarta.ws.rs-api</artifactId>
-            <version>${jakarta.ws-rs.version}</version>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>javax.ws.rs-api</artifactId>
+            <version>${javax.ws.rs.version}</version>
         </dependency>
         <dependency>
-            <groupId>jakarta.activation</groupId>
-            <artifactId>jakarta.activation-api</artifactId>
-            <version>${jakarta.activation.version}</version>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>${javax.activation.version}</version>
         </dependency>
 
         <!-- Jetty (web server) -->
