@@ -1,18 +1,26 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.Service;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic;
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics;
+import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.eclipse.jetty.server.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
 import java.util.Properties;
 
 import static com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils.*;
@@ -32,6 +40,7 @@ public class UsersService implements Service {
     private int port;
 
     // TODO: Add Kafka streams and producer
+    KafkaProducer<String, User> userProducer;
 
     /**
      * Instantiate the service
@@ -49,9 +58,26 @@ public class UsersService implements Service {
         jettyServer = startJetty(port, this); // TODO: Implement handlers
 
         // TODO: Add producer and streams
+        final Topic<String, User> users = Topics.USERS;
+        userProducer = createProducer(users, bootstrapServers, defaultConfig);
+        final User u = new User("fuljo", "Milan");
+        final ProducerRecord<String, User> record = new ProducerRecord<>(users.name(), u.getName().toString(), u);
+        userProducer.send(record);
 
         log.info("Started service {}", SERVICE_APP_ID);
         log.info("{} service listening at {}", SERVICE_APP_ID, jettyServer.getURI());
+    }
+
+    public <K, V> KafkaProducer<K, V> createProducer(Topic<K, V> topic, String bootstrapServers, Properties defaultConfig) {
+        final Properties config = new Properties();
+        config.putAll(defaultConfig);
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        config.put(ProducerConfig.RETRIES_CONFIG, String.valueOf(Integer.MAX_VALUE));
+        config.put(ProducerConfig.ACKS_CONFIG, "all");
+        config.put(ProducerConfig.CLIENT_ID_CONFIG, topic.name() + "-sender");
+
+        return new KafkaProducer<>(config, topic.keySerde().serializer(), topic.valueSerde().serializer());
     }
 
     @Override
@@ -101,7 +127,10 @@ public class UsersService implements Service {
         final String stateDir = cli.getOptionValue("state-dir", "/tmp/kafka-streams");
         final Properties defaultConfig =
                 buildPropertiesFromConfigFile(cli.getOptionValue("config-file", null));
-        // TODO: Add schema registry URL, if we're ever going to use it
+        final String schemaRegistryUrl = cli.getOptionValue("schema-registry", DEFAULT_SCHEMA_REGISTRY_URL);
+
+        // Configure serializers/deserializers
+        Schemas.configureSerdes(schemaRegistryUrl);
 
         // Create and start the service
         final UsersService service = new UsersService(restHostname, restPort);

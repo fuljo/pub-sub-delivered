@@ -1,0 +1,15 @@
+{
+  "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "address",
+      "type": "string"
+    }
+  ]
+}

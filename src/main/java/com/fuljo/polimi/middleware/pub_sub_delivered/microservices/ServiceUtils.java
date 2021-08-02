@@ -23,6 +23,7 @@ public class ServiceUtils {
     private static final Logger log = LoggerFactory.getLogger(ServiceUtils.class);
 
     public static final String DEFAULT_BOOTSTRAP_SERVERS = "localhost:9092";
+    public static final String DEFAULT_SCHEMA_REGISTRY_URL = "http://localhost:8081";
 
     /**
      * Builds a Properties object from a property file

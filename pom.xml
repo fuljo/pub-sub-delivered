@@ -41,6 +41,7 @@
         <kafka.version>2.8.0</kafka.version>
         <kafka.scala.version>2.13</kafka.scala.version>
         <conflutent.platform.version>6.2.0</conflutent.platform.version>
+        <avro.version>1.10.1</avro.version>
 
         <!-- JAX -->
         <javax.ws.rs.version>2.1.1</javax.ws.rs.version>
@@ -68,6 +69,11 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-streams</artifactId>
             <version>${kafka.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-streams-avro-serde</artifactId>
+            <version>${conflutent.platform.version}</version>
         </dependency>
 
         <!-- JAX-RS and activation -->
@@ -156,5 +162,31 @@
             <version>${log4j.version}</version>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Avro -->
+            <plugin>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro-maven-plugin</artifactId>
+                <version>${avro.version}</version>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>schema</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/src/main/resources/avro/</sourceDirectory>
+                            <includes>
+                                <include>User.avsc</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
