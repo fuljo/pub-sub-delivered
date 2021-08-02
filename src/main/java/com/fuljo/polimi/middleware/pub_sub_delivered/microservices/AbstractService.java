@@ -1,13 +1,10 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.microservices;
 
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.glassfish.jersey.jackson.JacksonFeature;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.servlet.ServletContainer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,12 +15,28 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Properties;
 
-public class ServiceUtils {
+/**
+ * Abstract class for a microservice
+ */
+public abstract class AbstractService implements Service {
 
-    private static final Logger log = LoggerFactory.getLogger(ServiceUtils.class);
+    protected final Logger log = LoggerFactory.getLogger(getClass());
+
+    protected final String SERVICE_APP_ID = getClass().getSimpleName();
 
     public static final String DEFAULT_BOOTSTRAP_SERVERS = "localhost:9092";
     public static final String DEFAULT_SCHEMA_REGISTRY_URL = "http://localhost:8081";
+
+
+    @Override
+    public abstract void start(String bootstrapServers, String stateDir, Properties defaultConfig);
+
+    @Override
+    public abstract void stop();
+
+    // Provide default empty constructor
+    protected AbstractService() {
+    }
 
     /**
      * Builds a Properties object from a property file
@@ -32,7 +45,7 @@ public class ServiceUtils {
      * @return properties object, empty if configFile is null
      * @throws IOException if the file does not exist
      */
-    public static Properties buildPropertiesFromConfigFile(final String configFile) throws IOException {
+    protected static Properties buildPropertiesFromConfigFile(final String configFile) throws IOException {
         // No file configured => empty properties
         if (configFile == null) {
             return new Properties();
@@ -50,51 +63,13 @@ public class ServiceUtils {
     }
 
     /**
-     * Start Jetty web server
-     *
-     * @param port    port to listen on
-     * @param binding object with annotated handlers
-     * @return the started server
-     */
-    public static Server startJetty(final int port, final Object binding) {
-        // Create servlet context handler
-        final ServletContextHandler ctx = new ServletContextHandler(ServletContextHandler.SESSIONS);
-        ctx.setContextPath("/");
-
-        // Create web server
-        final Server jettyServer = new Server(port);
-        jettyServer.setHandler(ctx);
-
-        // Register the resources
-        final ResourceConfig rc = new ResourceConfig();
-        rc.register(binding);
-        rc.register(JacksonFeature.class);
-
-        // Initialize the servlet container and holder
-        final ServletContainer sc = new ServletContainer(rc);
-        final ServletHolder holder = new ServletHolder(sc);
-
-        // Add Jersey servlet to Jetty container
-        ctx.addServlet(holder, "/*");
-
-        try {
-            jettyServer.start();
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-        log.debug("Listening on {}", jettyServer.getURI());
-        return jettyServer;
-    }
-
-    /**
      * Add hooks to gracefully shut down the service, blocks the current thread
      * <p>
-     * Blocking might be needed to keep a web server running
+     * Blocking might be needed to keep a web server or a consumer polling running
      *
-     * @param service create hooks for this service
      * @throws InterruptedException when current thread is interrupted
      */
-    public static void addShutdownHookAndBlock(final Service service) throws InterruptedException {
+    protected static void addShutdownHookAndBlock(Service service) throws InterruptedException {
         // Gracefully stop the service on exception
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> service.stop());
 
@@ -109,26 +84,41 @@ public class ServiceUtils {
     }
 
     /**
-     * Creates an Options object with specification of CLI options, including HTTP hostname and port
+     * Creates an Options object with specification of CLI options
      *
-     * @return options specification
+     * @param options options objects to append to
      */
-    public static Options createWebServiceOptions() {
-        final Options opts = new Options();
-        opts
+    protected static void addCliOptions(Options options) {
+        options
                 .addOption(Option.builder("b")
                         .longOpt("bootstrap-servers").hasArg().desc("Kafka cluster bootstrap server string").build())
                 .addOption(Option.builder("s")
                         .longOpt("schema-registry").hasArg().desc("Schema Registry URL").build())
-                .addOption(Option.builder("h")
-                        .longOpt("hostname").hasArg().desc("HTTP hostname for this service").build())
-                .addOption(Option.builder("p")
-                        .longOpt("port").hasArg().desc("HTTP port for this service").build())
                 .addOption(Option.builder("c")
                         .longOpt("config-file").hasArg().desc("Properties file with Kafka configuration").build())
                 .addOption(Option.builder("d")
                         .longOpt("state-dir").hasArg().desc("Directory for state storage").build())
                 .addOption(Option.builder("h").longOpt("help").hasArg(false).desc("Show help").build());
-        return opts;
+    }
+
+    /**
+     * Creates a new producer
+     * @param topic topic to write to (serde for K, V must be already configured)
+     * @param bootstrapServers addresses of the bootstrap servers
+     * @param defaultConfig default configuration provided by the user
+     * @param <K> key type
+     * @param <V> value type
+     * @return the producer
+     */
+    protected  <K, V> KafkaProducer<K, V> createProducer(Schemas.Topic<K, V> topic, String bootstrapServers, Properties defaultConfig) {
+        final Properties config = new Properties();
+        config.putAll(defaultConfig);
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        config.put(ProducerConfig.RETRIES_CONFIG, String.valueOf(Integer.MAX_VALUE));
+        config.put(ProducerConfig.ACKS_CONFIG, "all");
+        config.put(ProducerConfig.CLIENT_ID_CONFIG, String.format("%s-%s", SERVICE_APP_ID, topic.name()));
+
+        return new KafkaProducer<>(config, topic.keySerde().serializer(), topic.valueSerde().serializer());
     }
 }
