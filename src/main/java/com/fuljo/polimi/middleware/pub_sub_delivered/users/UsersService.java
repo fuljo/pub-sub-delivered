@@ -1,6 +1,7 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
+import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.beans.UserBean;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
@@ -234,6 +235,30 @@ public class UsersService extends AbstractWebService {
             return Response.ok(UserBean.toBean(user)).build();
         } else { // user not found
             return Response.status(Response.Status.NOT_FOUND).entity("User not found").build();
+        }
+    }
+
+    /**
+     * HTTP user login handler
+     * <p>
+     * Sets an authentication cookie on the User-Agent upon successful login
+     *
+     * @param id id of the user
+     * @return response
+     */
+    @POST
+    @Path("login")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response loginHandler(
+            @FormParam("user-id") String id
+    ) {
+        // Check if the user exists
+        User user = usersStore().get(id);
+        if (user != null) { // successful login
+            // Generate cookie with auth token
+            return Response.ok().cookie(ServiceUtils.generateAuthCookie(id)).build();
+        } else { // not authorized
+            return Response.status(Response.Status.UNAUTHORIZED).entity("User not found").build();
         }
     }
 
