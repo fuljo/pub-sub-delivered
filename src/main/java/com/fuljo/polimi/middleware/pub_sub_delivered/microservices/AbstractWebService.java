@@ -9,6 +9,10 @@ import org.glassfish.jersey.jackson.JacksonFeature;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.servlet.ServletContainer;
 
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.core.Response;
+import java.util.concurrent.TimeUnit;
+
 /**
  * Abstract class for a microservice with web capabilities
  */
@@ -79,5 +83,22 @@ public abstract class AbstractWebService extends AbstractService {
                         .longOpt("hostname").hasArg().desc("HTTP hostname for this service").build())
                 .addOption(Option.builder("p")
                         .longOpt("port").hasArg().desc("HTTP port for this service").build());
+    }
+
+    /**
+     * Sets the timeout of an asynchronous response, and responds if it expires
+     *
+     * @param response async response
+     * @param timeout  timeout in milliseconds
+     */
+    protected void setResponseTimeout(AsyncResponse response, Long timeout) {
+        response.setTimeout(timeout, TimeUnit.MILLISECONDS);
+        response.setTimeoutHandler(res -> {
+            res.resume(
+                    Response.status(Response.Status.GATEWAY_TIMEOUT)
+                            .entity("Response timed out after " + timeout + " ms.")
+                            .build()
+            );
+        });
     }
 }

@@ -3,8 +3,12 @@ package com.fuljo.polimi.middleware.pub_sub_delivered.microservices;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.Serde;
+import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.StreamsConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +18,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Abstract class for a microservice
@@ -23,6 +29,7 @@ public abstract class AbstractService implements Service {
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
     protected final String SERVICE_APP_ID = getClass().getSimpleName();
+    protected final Long STREAMS_TIMEOUT = 60000L;
 
     public static final String DEFAULT_BOOTSTRAP_SERVERS = "localhost:9092";
     public static final String DEFAULT_SCHEMA_REGISTRY_URL = "http://localhost:8081";
@@ -102,23 +109,132 @@ public abstract class AbstractService implements Service {
     }
 
     /**
-     * Creates a new producer
-     * @param topic topic to write to (serde for K, V must be already configured)
-     * @param bootstrapServers addresses of the bootstrap servers
-     * @param defaultConfig default configuration provided by the user
-     * @param <K> key type
-     * @param <V> value type
-     * @return the producer
+     * Returns a default configuration for a producer
+     *
+     * @param bootstrapServers urls of bootstrap servers
+     * @param clientId         client id for kafka identification
+     * @return configuration
      */
-    protected  <K, V> KafkaProducer<K, V> createProducer(Schemas.Topic<K, V> topic, String bootstrapServers, Properties defaultConfig) {
+    protected Properties defaultProducerConfig(String bootstrapServers, String clientId) {
         final Properties config = new Properties();
-        config.putAll(defaultConfig);
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
         config.put(ProducerConfig.RETRIES_CONFIG, String.valueOf(Integer.MAX_VALUE));
         config.put(ProducerConfig.ACKS_CONFIG, "all");
-        config.put(ProducerConfig.CLIENT_ID_CONFIG, String.format("%s-%s", SERVICE_APP_ID, topic.name()));
+        config.put(ProducerConfig.CLIENT_ID_CONFIG, clientId);
+        return config;
+    }
 
-        return new KafkaProducer<>(config, topic.keySerde().serializer(), topic.valueSerde().serializer());
+    /**
+     * Creates a new producer
+     *
+     * @param bootstrapServers urls of bootstrap servers
+     * @param clientId         client id for kafka identification
+     * @param keySerde         key serializer/deserializer
+     * @param valueSerde       value serializer/deserializer
+     * @param defaultConfig    default configuration provided by the user
+     * @param <K>              key type
+     * @param <V>              value type
+     * @return the producer
+     */
+    protected <K, V> KafkaProducer<K, V> createProducer(String bootstrapServers,
+                                                        String clientId,
+                                                        Serde<K> keySerde,
+                                                        Serde<V> valueSerde,
+                                                        Properties defaultConfig) {
+        // Configure
+        final Properties config = new Properties();
+        config.putAll(defaultConfig);
+        config.putAll(defaultProducerConfig(bootstrapServers, clientId));
+        // Create
+        return new KafkaProducer<>(config, keySerde.serializer(), valueSerde.serializer());
+    }
+
+    /**
+     * Creates a new producer
+     *
+     * @param bootstrapServers urls of bootstrap servers
+     * @param clientId         client id for kafka identification
+     * @param transactionalId  id of this producer for transactional purposes
+     * @param keySerde         key serializer/deserializer
+     * @param valueSerde       value serializer/deserializer
+     * @param defaultConfig    default configuration provided by the user
+     * @param <K>              key type
+     * @param <V>              value type
+     * @return the producer
+     */
+    protected <K, V> KafkaProducer<K, V> createTransactionalProducer(String bootstrapServers,
+                                                                     String clientId,
+                                                                     String transactionalId,
+                                                                     Serde<K> keySerde,
+                                                                     Serde<V> valueSerde,
+                                                                     Properties defaultConfig) {
+        // Configure
+        final Properties config = new Properties();
+        config.putAll(defaultConfig);
+        config.putAll(defaultProducerConfig(bootstrapServers, clientId));
+        config.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId);
+        // Create
+        KafkaProducer<K, V> producer = new KafkaProducer<>(config, keySerde.serializer(), valueSerde.serializer());
+        // Fence off previous instances of this producer (with same transactional id)
+        producer.initTransactions();
+        return producer;
+    }
+
+    /**
+     * Create streams configuration with some default values
+     *
+     * @param bootstrapServers     urls of boostrap servers
+     * @param stateDir             local directory to checkpoint state
+     * @param appId                id of the whole application
+     * @param exactlyOnceSemantics whether to use exactly once or at least once
+     * @return the configuration
+     */
+    protected Properties defaultStreamsConfig(String bootstrapServers,
+                                              String stateDir,
+                                              String appId,
+                                              Boolean exactlyOnceSemantics) {
+        Properties config = new Properties();
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        config.put(StreamsConfig.APPLICATION_ID_CONFIG, appId);
+        config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 1); // TODO: Change this
+        config.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
+        config.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, exactlyOnceSemantics ? "exactly_once_v2" : "at_least_once");
+        return config;
+    }
+
+
+    /**
+     * Starts th streams and waits until they are running
+     *
+     * @param streams the streams object
+     * @param timeout timeout to wait for the streams to start, in milliseconds
+     * @throws RuntimeException if the streams take more than timeout to start
+     */
+    protected void startStreams(KafkaStreams streams, Long timeout) {
+        streams.cleanUp(); // TODO: Remove this in production
+
+        final CountDownLatch startLatch = new CountDownLatch(1);
+
+        // We want to wait until we transition to running
+        streams.setStateListener((newState, oldState) -> {
+            if (newState == KafkaStreams.State.RUNNING && oldState != KafkaStreams.State.RUNNING) {
+                startLatch.countDown();
+            }
+        });
+
+        // Give the start signal
+        log.info("Starting streams...");
+        streams.start();
+
+        // Wait for the streams to start
+        try {
+            if (!startLatch.await(timeout, TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Streams are still re-balancing after " + timeout / 1e3 + " seconds");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
