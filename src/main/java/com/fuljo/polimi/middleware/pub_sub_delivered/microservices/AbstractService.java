@@ -1,6 +1,5 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.microservices;
 
-import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -36,7 +35,7 @@ public abstract class AbstractService implements Service {
 
 
     @Override
-    public abstract void start(String bootstrapServers, String stateDir, Properties defaultConfig);
+    public abstract void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig);
 
     @Override
     public abstract void stop();
@@ -105,6 +104,8 @@ public abstract class AbstractService implements Service {
                         .longOpt("config-file").hasArg().desc("Properties file with Kafka configuration").build())
                 .addOption(Option.builder("d")
                         .longOpt("state-dir").hasArg().desc("Directory for state storage").build())
+                .addOption(Option.builder("r")
+                        .longOpt("replica-id").hasArg().desc("Id to distinguish this replica (e.g. 1)").build())
                 .addOption(Option.builder("h").longOpt("help").hasArg(false).desc("Show help").build());
     }
 
@@ -198,7 +199,7 @@ public abstract class AbstractService implements Service {
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         config.put(StreamsConfig.APPLICATION_ID_CONFIG, appId);
         config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 1); // TODO: Change this
+        config.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 2); // TODO: Change this
         config.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
         config.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, exactlyOnceSemantics ? "exactly_once_v2" : "at_least_once");
         return config;

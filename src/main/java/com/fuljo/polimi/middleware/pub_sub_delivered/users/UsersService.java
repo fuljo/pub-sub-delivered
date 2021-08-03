@@ -60,12 +60,16 @@ public class UsersService extends AbstractWebService {
     }
 
     @Override
-    public void start(String bootstrapServers, String stateDir, Properties defaultConfig) {
+    public void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig) {
 
         // Create the producer
         final String userProducerId = String.format("%s-%s", SERVICE_APP_ID, USERS.name());
-        userProducer = createTransactionalProducer(bootstrapServers, userProducerId, userProducerId,
-                USERS.keySerde(), USERS.valueSerde(), defaultConfig);
+        userProducer = createTransactionalProducer(
+                bootstrapServers,
+                String.format("%s-%s", SERVICE_APP_ID, USERS.name()),
+                String.format("%s-%s-%s", SERVICE_APP_ID, USERS.name(), replicaId),
+                USERS.keySerde(), USERS.valueSerde(),
+                defaultConfig);
 
         // Create the streams
         streams = createStreams(bootstrapServers, stateDir, defaultConfig);
@@ -293,6 +297,7 @@ public class UsersService extends AbstractWebService {
         final String restHostname = cli.getOptionValue("hostname", "localhost");
         final int restPort = Integer.parseInt(cli.getOptionValue("port", "80"));
         final String stateDir = cli.getOptionValue("state-dir", "/tmp/kafka-streams");
+        final String replicaId = cli.getOptionValue("replica-id", "1");
         final Properties defaultConfig =
                 buildPropertiesFromConfigFile(cli.getOptionValue("config-file", null));
         final String schemaRegistryUrl = cli.getOptionValue("schema-registry", DEFAULT_SCHEMA_REGISTRY_URL);
@@ -302,7 +307,7 @@ public class UsersService extends AbstractWebService {
 
         // Create and start the service
         final UsersService service = new UsersService(restHostname, restPort);
-        service.start(bootstrapServers, stateDir, defaultConfig);
+        service.start(bootstrapServers, stateDir, replicaId, defaultConfig);
         addShutdownHookAndBlock(service);
     }
 }

@@ -16,7 +16,7 @@ public interface Service {
      * @param stateDir directory where to sae state
      * @param defaultConfig default configuration values for Kafka
      */
-    void start(String bootstrapServers, String stateDir, Properties defaultConfig);
+    void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig);
 
     /**
      * Stop the service gracefully

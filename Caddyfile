@@ -1,6 +1,6 @@
 localhost:80 {
     # Microservice's APIs
-    reverse_proxy /api/users* users-service:80
+    reverse_proxy /api/users-service* users-service:80
 
     # Static files
     file_server * {
