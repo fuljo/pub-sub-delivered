@@ -1,5 +1,6 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 
+import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.ValidationException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
@@ -20,7 +21,6 @@ import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.glassfish.jersey.server.ManagedAsync;
 
-import javax.validation.ValidationException;
 import javax.ws.rs.*;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
@@ -231,7 +231,7 @@ public class UsersService extends AbstractWebService {
      * @param user user bean
      * @throws ValidationException if the user is not valid. The message contains the reason.
      */
-    void validateUser(UserBean user) {
+    private void validateUser(UserBean user) throws ValidationException {
         // Validate id
         if (!USER_ID_PATTERN.matcher(user.getId()).matches()) {
             throw new ValidationException(
