@@ -17,12 +17,8 @@ import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
-import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.streams.kstream.Consumed;
-import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
-import org.apache.kafka.streams.state.Stores;
 import org.glassfish.jersey.server.ManagedAsync;
 
 import javax.validation.ValidationException;
@@ -48,7 +44,7 @@ public class UsersService extends AbstractWebService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9_!#$%&’*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+$");
 
     private KafkaProducer<String, User> userProducer;
-    private KafkaStreams streams;
+    private KafkaStreams usersStreams;
 
 
     /**
@@ -73,8 +69,8 @@ public class UsersService extends AbstractWebService {
                 defaultConfig);
 
         // Create the streams
-        streams = createStreams(bootstrapServers, stateDir, defaultConfig);
-        startStreams(streams, STREAMS_TIMEOUT);
+        usersStreams = createMaterializedView(USERS, USERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
+        startStreams(new KafkaStreams[]{usersStreams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
         jettyServer = startJetty(port, this);
@@ -85,8 +81,8 @@ public class UsersService extends AbstractWebService {
 
     @Override
     public void stop() {
-        if (streams != null) {
-            streams.close();
+        if (usersStreams != null) {
+            usersStreams.close();
         }
         if (userProducer != null) {
             userProducer.close();
@@ -102,50 +98,12 @@ public class UsersService extends AbstractWebService {
     }
 
     /**
-     * Create streams for this service
-     * <p>
-     *
-     * @param bootstrapServers urls of boostrap servers
-     * @param stateDir         local directory to checkpoint state
-     * @return the configuration
-     * @implNote We create a GlobalKTable to retrieve the users, which is more costly than a regular KTable.
-     * A solution which scales better would be to build a KTable for each partition:
-     * <ul>
-     *     <li>requests for local keys are handled locally</li>
-     *     <li>requests for non-local keys are routed towards the other replicas</li>
-     * </ul>
-     * However, we would need to manually set up an RPC layer to discover and communicate to other partitions,
-     * which has a non-negligible programming cost and is out of the scope of this project.
-     * @implNote We use a non-persisted in-memory store for the users, since the USERS topic is already persisted,
-     * and the USERS table can be computed from it.
-     */
-    private KafkaStreams createStreams(String bootstrapServers,
-                                       String stateDir,
-                                       Properties defaultConfig) {
-        // Define topology
-        StreamsBuilder builder = new StreamsBuilder();
-        builder
-                // Materialized view of the users
-                .globalTable(USERS.name(),
-                        Consumed.with(USERS.keySerde(), USERS.valueSerde()),
-                        Materialized.as(Stores.inMemoryKeyValueStore(USERS_STORE_NAME)));
-
-        // Create config
-        Properties config = new Properties();
-        config.putAll(defaultConfig);
-        config.putAll(defaultStreamsConfig(bootstrapServers, stateDir, SERVICE_APP_ID, false));
-
-        // Build streams
-        return new KafkaStreams(builder.build(), config);
-    }
-
-    /**
      * Returns the users' store
      *
      * @return read-only key-value store
      */
     private ReadOnlyKeyValueStore<String, User> usersStore() {
-        return streams.store(StoreQueryParameters.fromNameAndType(USERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+        return usersStreams.store(StoreQueryParameters.fromNameAndType(USERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
     }
 
     /**

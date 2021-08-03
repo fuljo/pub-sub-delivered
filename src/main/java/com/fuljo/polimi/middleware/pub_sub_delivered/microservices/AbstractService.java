@@ -1,5 +1,6 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.microservices;
 
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -7,7 +8,11 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.state.Stores;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -201,33 +206,84 @@ public abstract class AbstractService implements Service {
         config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 2); // TODO: Change this
         config.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
-        config.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, exactlyOnceSemantics ? "exactly_once_v2" : "at_least_once");
+        config.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, exactlyOnceSemantics ? "exactly_once" : "at_least_once");
         return config;
+    }
+
+    /**
+     * Creates a global materialized view of a topic via an in-memory key-value store.
+     * The given topic is assumed to be already persisted.
+     *
+     * @param topic            the topic
+     * @param storeName        local name for the key-value store
+     * @param bootstrapServers urls of the bootstrap servers
+     * @param defaultConfig    config provided by the  user
+     * @param <K>              key type
+     * @param <V>              value type
+     * @return a kafka streams instance, yet to be started
+     * @implNote We create a GlobalKTable to retrieve the records, which is more costly than a regular KTable.
+     * A solution which scales better would be to build a KTable for each partition:
+     * <ul>
+     *     <li>requests for local keys are handled locally</li>
+     *     <li>requests for non-local keys are routed towards the other replicas</li>
+     * </ul>
+     * However, we would need to manually set up an RPC layer to discover and communicate to other partitions,
+     * which has a non-negligible programming cost and is out of the scope of this project.
+     * @implNote We use a non-persisted in-memory store for the records, since the topic is already persisted,
+     * and the resulting table can be computed from it.
+     */
+    protected <K, V> KafkaStreams createMaterializedView(Topic<K, V> topic,
+                                                         String storeName,
+                                                         String bootstrapServers,
+                                                         String stateDir,
+                                                         Properties defaultConfig) {
+        // Define topology
+        StreamsBuilder builder = new StreamsBuilder();
+        builder
+                // Materialized view of the users
+                .globalTable(topic.name(),
+                        Consumed.with(topic.keySerde(), topic.valueSerde()),
+                        Materialized.as(Stores.inMemoryKeyValueStore(storeName)));
+
+        // Create config
+        Properties config = new Properties();
+        config.putAll(defaultConfig);
+        config.putAll(defaultStreamsConfig(bootstrapServers, stateDir, SERVICE_APP_ID, true));
+
+        // Build streams
+        return new KafkaStreams(builder.build(), config);
     }
 
 
     /**
-     * Starts th streams and waits until they are running
+     * Starts all the instances of streams and waits (in parallel) until they are running
      *
-     * @param streams the streams object
+     * @param streamsArray the streams object
      * @param timeout timeout to wait for the streams to start, in milliseconds
      * @throws RuntimeException if the streams take more than timeout to start
      */
-    protected void startStreams(KafkaStreams streams, Long timeout) {
-        streams.cleanUp(); // TODO: Remove this in production
+    protected void startStreams(KafkaStreams[] streamsArray, Long timeout) {
+        if (streamsArray.length == 0) {
+            return;
+        }
 
-        final CountDownLatch startLatch = new CountDownLatch(1);
+        final CountDownLatch startLatch = new CountDownLatch(streamsArray.length);
 
-        // We want to wait until we transition to running
-        streams.setStateListener((newState, oldState) -> {
-            if (newState == KafkaStreams.State.RUNNING && oldState != KafkaStreams.State.RUNNING) {
-                startLatch.countDown();
-            }
-        });
-
-        // Give the start signal
+        // Set up the callback for all the streams instances
         log.info("Starting streams...");
-        streams.start();
+        for (KafkaStreams streams : streamsArray) {
+            streams.cleanUp(); // TODO: Remove this in production
+
+            // We want to wait until we transition to running
+            streams.setStateListener((newState, oldState) -> {
+                if (newState == KafkaStreams.State.RUNNING && oldState != KafkaStreams.State.RUNNING) {
+                    startLatch.countDown();
+                }
+            });
+
+            // Give the start signal
+            streams.start();
+        }
 
         // Wait for the streams to start
         try {
