@@ -1,4 +1,4 @@
-package com.fuljo.polimi.middleware.pub_sub_delivered.model.beans;
+package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;

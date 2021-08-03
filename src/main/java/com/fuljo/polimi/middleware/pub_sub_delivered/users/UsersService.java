@@ -3,7 +3,6 @@ package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
-import com.fuljo.polimi.middleware.pub_sub_delivered.model.beans.UserBean;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
