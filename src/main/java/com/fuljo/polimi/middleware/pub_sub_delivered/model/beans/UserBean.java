@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.UserRole;
 
 import java.util.Objects;
 
@@ -12,13 +13,34 @@ import java.util.Objects;
  */
 public class UserBean {
 
+    public enum Role { CUSTOMER, ADMIN, DELIVERY }
+
+    /**
+     * User identifier
+     */
     private final String id;
-    private final String address;
+    /**
+     * Full name
+     */
+    private final String name;
+    /**
+     * Email
+     */
+    private final String email;
+    /**
+     * Role
+     */
+    private final Role role;
 
     @JsonCreator
-    public UserBean(@JsonProperty("id") String id, @JsonProperty("address") String address) {
+    public UserBean(@JsonProperty("id") String id,
+                    @JsonProperty("name") String name,
+                    @JsonProperty("email") String email,
+                    @JsonProperty("role") Role role) {
         this.id = id;
-        this.address = address;
+        this.name = name;
+        this.email = email;
+        this.role = role;
     }
 
     @JsonGetter("id")
@@ -26,9 +48,19 @@ public class UserBean {
         return id;
     }
 
-    @JsonGetter("address")
-    public String getAddress() {
-        return address;
+    @JsonGetter("name")
+    public String getName() {
+        return name;
+    }
+
+    @JsonGetter("email")
+    public String getEmail() {
+        return email;
+    }
+
+    @JsonGetter("role")
+    public Role getRole() {
+        return role;
     }
 
     @Override
@@ -36,19 +68,21 @@ public class UserBean {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UserBean userBean = (UserBean) o;
-        return id.equals(userBean.id) && address.equals(userBean.address);
+        return id.equals(userBean.id) && name.equals(userBean.name) && email.equals(userBean.email)
+                && role.equals(userBean.role);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, address);
+        return Objects.hash(id, name, email, role);
     }
 
-    public static UserBean toBean(final User user) {
-        return new UserBean(user.getId().toString(), user.getAddress().toString());
+    public static UserBean toBean(User user) {
+        return new UserBean(user.getId().toString(), user.getName().toString(), user.getEmail().toString(),
+                Role.valueOf(user.getRole().name()));
     }
 
-    public static User fromBean(final UserBean user) {
-        return new User(user.getId(), user.getAddress());
+    public static User fromBean(UserBean bean) {
+        return new User(bean.getId(), bean.getName(), bean.getEmail(), UserRole.valueOf(bean.getRole().name()));
     }
 }

@@ -25,6 +25,7 @@ import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.apache.kafka.streams.state.Stores;
 import org.glassfish.jersey.server.ManagedAsync;
 
+import javax.validation.ValidationException;
 import javax.ws.rs.*;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
@@ -42,8 +43,9 @@ import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic
 public class UsersService extends AbstractWebService {
 
     private static final String CALL_TIMEOUT = "10000";
-    private static final String USERS_STORE_NAME = "orders-store";
-    private static final Pattern userIdPattern = Pattern.compile("^[\\w-_]{5,20}$");
+    private static final String USERS_STORE_NAME = "users-store";
+    private static final Pattern USER_ID_PATTERN = Pattern.compile("^[\\w_.-]{5,20}$");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9_!#$%&’*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+$");
 
     private KafkaProducer<String, User> userProducer;
     private KafkaStreams streams;
@@ -63,7 +65,6 @@ public class UsersService extends AbstractWebService {
     public void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig) {
 
         // Create the producer
-        final String userProducerId = String.format("%s-%s", SERVICE_APP_ID, USERS.name());
         userProducer = createTransactionalProducer(
                 bootstrapServers,
                 String.format("%s-%s", SERVICE_APP_ID, USERS.name()),
@@ -167,18 +168,19 @@ public class UsersService extends AbstractWebService {
         // Set the timeout
         setResponseTimeout(response, timeout);
 
-        // Validate user ID
-        String id = user.getId();
-        if (!validateUserId(id)) {
+        // Validate user data
+        try {
+            validateUser(user);
+        } catch (ValidationException e) {
             response.resume(Response
                     .status(Response.Status.BAD_REQUEST)
-                    .entity("The user id shall be between 5 and 20 characters long. " +
-                            "Only alphanumerical characters, hyphens and underscores are allowed")
+                    .entity(e.getMessage())
                     .build());
             return;
         }
 
         // Create the user if another one with the same name does not exist
+        String id = user.getId();
         if (usersStore().get(id) == null) { // user does not exist => create
             // Use a transaction
             try {
@@ -188,7 +190,7 @@ public class UsersService extends AbstractWebService {
                 userProducer.send(new ProducerRecord<>(USERS.name(), id, u), (recordMetadata, e) -> {
                     // This is a callback after the record has been inserted and committed
                     if (e != null) { // exception
-                        response.resume(e);
+                        response.resume(e.getMessage());
                     } else { // user successfully created
                         try {
                             response.resume(Response
@@ -198,7 +200,7 @@ public class UsersService extends AbstractWebService {
                                     .entity(UserBean.toBean(u))
                                     .build());
                         } catch (URISyntaxException ex) {
-                            response.resume(ex);
+                            response.resume(ex.getMessage());
                         }
                     }
                 });
@@ -267,13 +269,27 @@ public class UsersService extends AbstractWebService {
     }
 
     /**
-     * Validates a user id against a regex pattern
+     * Validates a given user bean
      *
-     * @param id user id
-     * @return whether the id is valid or not
+     * @param user user bean
+     * @throws ValidationException if the user is not valid. The message contains the reason.
      */
-    boolean validateUserId(String id) {
-        return userIdPattern.matcher(id).matches();
+    void validateUser(UserBean user) {
+        // Validate id
+        if (!USER_ID_PATTERN.matcher(user.getId()).matches()) {
+            throw new ValidationException(
+                    "Invalid User: The user id shall be between 5 and 20 characters long. " +
+                    "Only alphanumerical characters, hyphens and underscores are allowed");
+        }
+        // Validate name
+        if (user.getName().trim().length() == 0) {
+            throw new ValidationException("The name cannot be empty");
+        }
+        // Validate email
+        if (!EMAIL_PATTERN.matcher(user.getEmail()).matches()) {
+            throw new ValidationException(
+                    "Invalid User: The email does not meet the requirements of RFC 5322");
+        }
     }
 
     /**

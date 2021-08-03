@@ -1,15 +1,35 @@
-{
-  "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
-  "type": "record",
-  "name": "User",
-  "fields": [
-    {
-      "name": "id",
-      "type": "string"
-    },
-    {
-      "name": "address",
-      "type": "string"
-    }
-  ]
-}
+[
+  {
+    "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
+    "type": "enum",
+    "name": "UserRole",
+    "symbols": [
+      "CUSTOMER",
+      "ADMIN",
+      "DELIVERY"
+    ]
+  },
+  {
+    "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
+    "type": "record",
+    "name": "User",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string"
+      },
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "email",
+        "type": "string"
+      },
+      {
+        "name": "role",
+        "type": "UserRole"
+      }
+    ]
+  }
+]
