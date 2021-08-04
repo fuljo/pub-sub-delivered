@@ -2,7 +2,6 @@ package com.fuljo.polimi.middleware.pub_sub_delivered.exceptions;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 @Provider

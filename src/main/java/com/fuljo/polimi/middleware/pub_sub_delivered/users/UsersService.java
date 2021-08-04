@@ -3,7 +3,7 @@ package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.ValidationException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.WebServiceException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
-import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils;
+import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.CommandLine;
@@ -208,7 +208,7 @@ public class UsersService extends AbstractWebService {
         User user = usersStore().get(id);
         if (user != null) { // successful login
             // Generate cookie with auth token
-            return Response.ok().cookie(ServiceUtils.generateAuthCookie(id)).build();
+            return Response.ok().cookie(AuthenticationHelper.generateAuthCookie(id)).build();
         } else { // not authorized
             throw new WebServiceException("Login failed: user does not exist", Response.Status.UNAUTHORIZED);
         }
