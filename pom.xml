@@ -176,6 +176,7 @@
                             <sourceDirectory>${project.basedir}/src/main/resources/avro/</sourceDirectory>
                             <includes>
                                 <include>User.avsc</include>
+                                <include>Product.avsc</include>
                             </includes>
                             <outputDirectory>${project.build.directory}/generated-sources</outputDirectory>
                         </configuration>

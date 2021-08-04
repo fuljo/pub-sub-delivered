@@ -32,3 +32,11 @@ Holds all the user records, new records substitute old records.
 - read by: UsersService, OrdersService
 - key type: `String`
 - value type: `User`
+
+#### Products
+Holds all the products and their availability info, new records substitute old records.
+- name: `products`
+- written by: OrdersService
+- read by: OrdersService
+- key type: `String`
+- value type: `Product`

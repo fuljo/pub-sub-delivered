@@ -1,0 +1,27 @@
+{
+  "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
+  "type": "record",
+  "name": "Product",
+  "fields": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "type": "string"
+    },
+    {
+      "name": "price",
+      "type": "double"
+    },
+    {
+      "name": "available",
+      "type": "boolean"
+    }
+  ]
+}
