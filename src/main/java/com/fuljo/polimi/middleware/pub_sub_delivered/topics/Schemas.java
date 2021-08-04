@@ -1,5 +1,6 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.topics;
 
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Order;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Product;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
@@ -69,6 +70,7 @@ public class Schemas {
         public final static Map<String, Topic<?, ?>> ALL = new HashMap<>();
         public static Topic<String, User> USERS;
         public static Topic<String, Product> PRODUCTS;
+        public static Topic<String, Order> ORDERS;
 
         static {
             createTopics();
@@ -79,6 +81,8 @@ public class Schemas {
             ALL.put("users", USERS);
             PRODUCTS = new Topic<>("products", Serdes.String(), new SpecificAvroSerde<>());
             ALL.put("products", PRODUCTS);
+            ORDERS = new Topic<>("orders", Serdes.String(), new SpecificAvroSerde<>());
+            ALL.put("orders", ORDERS);
         }
     }
 

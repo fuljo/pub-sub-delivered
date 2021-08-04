@@ -12,10 +12,6 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.errors.AuthorizationException;
-import org.apache.kafka.common.errors.OutOfOrderSequenceException;
-import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
@@ -28,7 +24,6 @@ import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
@@ -81,18 +76,20 @@ public class UsersService extends AbstractWebService {
 
     @Override
     public void stop() {
-        if (usersStreams != null) {
-            usersStreams.close();
-        }
-        if (userProducer != null) {
-            userProducer.close();
+        // Close streams and producers
+        for (AutoCloseable c : new AutoCloseable[]{usersStreams, userProducer}) {
+            try {
+                c.close();
+            } catch (final Exception e) {
+                log.error("Error while closing service " + SERVICE_APP_ID, e);
+            }
         }
 
         if (jettyServer != null) {
             try {
                 jettyServer.stop();
             } catch (final Exception e) {
-                e.printStackTrace();
+                log.error("Error while closing Jetty for service " + SERVICE_APP_ID, e);
             }
         }
     }

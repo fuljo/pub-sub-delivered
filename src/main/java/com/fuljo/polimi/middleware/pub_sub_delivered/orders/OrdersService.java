@@ -4,6 +4,7 @@ import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.ValidationExcept
 import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.WebServiceException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Order;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Product;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.UserRole;
@@ -34,8 +35,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.PRODUCTS;
-import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.USERS;
+import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.*;
 
 @Path("api/orders-service")
 public class OrdersService extends AbstractWebService {
@@ -47,8 +47,10 @@ public class OrdersService extends AbstractWebService {
     private static final Pattern PRODUCT_ID_PATTERN = Pattern.compile("^[\\w_.-]+$");
 
     private KafkaProducer<String, Product> productProducer;
+    private KafkaProducer<String, Order> orderProducer;
     private KafkaStreams usersStreams;
     private KafkaStreams productsStreams;
+    private KafkaStreams ordersStreams;
 
 
     /**
@@ -70,13 +72,19 @@ public class OrdersService extends AbstractWebService {
                 String.format("%s-%s-%s", SERVICE_APP_ID, PRODUCTS.name(), replicaId),
                 PRODUCTS.keySerde(), PRODUCTS.valueSerde(),
                 defaultConfig);
-        // TODO: Create the producer for orders
+        // Create the producer for orders
+        orderProducer = createTransactionalProducer(
+                bootstrapServers,
+                String.format("%s-%s", SERVICE_APP_ID, ORDERS.name()),
+                String.format("%s-%s-%s", SERVICE_APP_ID, ORDERS.name(), replicaId),
+                ORDERS.keySerde(), ORDERS.valueSerde(),
+                defaultConfig);
 
         // Create the streams
         usersStreams = createMaterializedView(USERS, USERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
         productsStreams = createMaterializedView(PRODUCTS, PRODUCTS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
-        // TODO: Create streams for orders
-        startStreams(new KafkaStreams[]{usersStreams, productsStreams}, STREAMS_TIMEOUT);
+        ordersStreams = createMaterializedView(ORDERS, ORDERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
+        startStreams(new KafkaStreams[]{usersStreams, productsStreams, ordersStreams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
         jettyServer = startJetty(port, this);
@@ -87,21 +95,20 @@ public class OrdersService extends AbstractWebService {
 
     @Override
     public void stop() {
-        if (usersStreams != null) {
-            usersStreams.close();
-        }
-        if (productsStreams != null) {
-            productsStreams.close();
-        }
-        if (productProducer != null) {
-            productProducer.close();
+        // Close streams and producers
+        for (AutoCloseable c : new AutoCloseable[]{usersStreams, productsStreams, ordersStreams, productProducer, orderProducer}) {
+            try {
+                c.close();
+            } catch (final Exception e) {
+                log.error("Error while closing service " + SERVICE_APP_ID, e);
+            }
         }
 
         if (jettyServer != null) {
             try {
                 jettyServer.stop();
             } catch (final Exception e) {
-                e.printStackTrace();
+                log.error("Error while closing Jetty for service " + SERVICE_APP_ID, e);
             }
         }
     }

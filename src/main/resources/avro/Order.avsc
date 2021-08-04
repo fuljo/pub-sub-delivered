@@ -1,0 +1,48 @@
+[
+  {
+    "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
+    "type": "enum",
+    "name": "OrderState",
+    "symbols": [
+      "CREATED",
+      "VALIDATED",
+      "READY",
+      "SHIPPED",
+      "FAILED"
+    ]
+  },
+  {
+    "namespace": "com.fuljo.polimi.middleware.pub_sub_delivered.model.avro",
+    "type": "record",
+    "name": "Order",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string"
+      },
+      {
+        "name": "customerId",
+        "type": "string"
+      },
+      {
+        "name": "shippingAddress",
+        "type": "string"
+      },
+      {
+        "name": "state",
+        "type": "OrderState"
+      },
+      {
+        "name": "products",
+        "type": {
+          "type": "map",
+          "values": "int"
+        }
+      },
+      {
+        "name": "totalPrice",
+        "type": "double"
+      }
+    ]
+  }
+]
