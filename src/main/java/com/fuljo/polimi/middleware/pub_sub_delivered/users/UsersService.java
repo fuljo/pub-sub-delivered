@@ -129,45 +129,23 @@ public class UsersService extends AbstractWebService {
         // Validate user data
         validateUser(user);
 
-        // Create the user if another one with the same name does not exist
+        // Check that the user does not exist
         String id = user.getId();
-        if (usersStore().get(id) == null) { // user does not exist => create
-            // Use a transaction
-            try {
-                final User u = UserBean.fromBean(user);
-                userProducer.beginTransaction();
-                // Send record and respond when finished
-                userProducer.send(new ProducerRecord<>(USERS.name(), id, u), (recordMetadata, e) -> {
-                    // This is a callback after the record has been inserted and committed
-                    if (e != null) { // exception
-                        throw new WebServiceException(e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
-                    } else { // user successfully created
-                        try {
-                            response.resume(Response
-                                    // build URL to the new resource
-                                    .created(new URI("/api/users/user/" + id))
-                                    // add the resource itself to the body
-                                    .entity(UserBean.toBean(u))
-                                    .build());
-                        } catch (URISyntaxException ex) {
-                            throw new WebServiceException(ex.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
-                        }
-                    }
-                });
-                userProducer.commitTransaction();
-            } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
-                // Unrecoverable exception => close the service
-                log.error("The producer suffered an unrecoverable error, stopping service " + SERVICE_APP_ID, e);
-                this.stop();
-                // TODO: Maybe exit(1)
-            } catch (KafkaException e) {
-                // Abort transaction and try again
-                log.warn("Registration of user \"" + id + "\" aborted", e);
-                userProducer.abortTransaction();
-            }
-        } else { // user exists => error
+        if (usersStore().get(id) != null) { // user exists => error
             throw new WebServiceException("User already exists", Response.Status.CONFLICT);
         }
+
+        // Create the user with a transaction
+        final User u = UserBean.fromBean(user);
+        sendProducerRecordWithTransaction(
+                userProducer,
+                new ProducerRecord<>(USERS.name(), id, u),
+                response,
+                () -> Response
+                        .created(new URI("/api/users-service/users/" + id))
+                        .entity(UserBean.toBean(u))
+                        .build()
+        );
     }
 
     /**

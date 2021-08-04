@@ -1,7 +1,14 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.microservices;
 
+import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.WebServiceException;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.errors.AuthorizationException;
+import org.apache.kafka.common.errors.OutOfOrderSequenceException;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -11,6 +18,7 @@ import org.glassfish.jersey.servlet.ServletContainer;
 
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -102,5 +110,52 @@ public abstract class AbstractWebService extends AbstractService {
                             .build()
             );
         });
+    }
+
+    /**
+     * Send a producer record using a transaction, as part of a REST request.
+     * <p>
+     * Also provides safe handling of some Kafka exceptions.
+     *
+     * @param producer kafka producer
+     * @param record record to send
+     * @param asyncResponse suspended async response for the REST request
+     * @param successCallback will be called when the record has been successfully sent to produce a response
+     * @param <K> key type
+     * @param <V> value type
+     */
+    protected <K, V> void sendProducerRecordWithTransaction(KafkaProducer<K, V> producer,
+                                                            ProducerRecord<K, V> record,
+                                                            AsyncResponse asyncResponse,
+                                                            Callable<Response> successCallback) {
+        try {
+            // Start transaction
+            producer.beginTransaction();
+            // Send with callback
+            producer.send(record, ((recordMetadata, e) -> {
+                // This is a callback after the record has been inserted
+                if (e != null) { // exception
+                    throw new WebServiceException(e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
+                } else { // successfully inserted into topic
+                    // Respond to the request
+                    try {
+                        asyncResponse.resume(successCallback.call());
+                    } catch (Exception ex) {
+                        log.error("Error when generating resource", ex);
+                        throw new WebServiceException(ex.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
+                    }
+                }
+            }));
+            producer.commitTransaction();
+        } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
+            // Unrecoverable exception => close the service
+            log.error("The producer suffered an unrecoverable error, stopping service " + SERVICE_APP_ID, e);
+            this.stop();
+            // TODO: Maybe exit(1)
+        } catch (KafkaException e) {
+            // Abort transaction and try again
+            log.warn("Sending record \"" + record + "\" aborted", e);
+            producer.abortTransaction();
+        }
     }
 }
