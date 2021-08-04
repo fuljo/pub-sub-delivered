@@ -134,7 +134,7 @@ public class UsersService extends AbstractWebService {
 
         // Create the user with a transaction
         final User u = UserBean.fromBean(user);
-        sendProducerRecordWithTransaction(
+        produceNewRecordWithTransaction(
                 userProducer,
                 new ProducerRecord<>(USERS.name(), id, u),
                 response,

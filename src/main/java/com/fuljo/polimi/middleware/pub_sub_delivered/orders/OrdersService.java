@@ -169,7 +169,7 @@ public class OrdersService extends AbstractWebService {
         String id = product.getId();
 
         // Send record and respond when finished
-        sendProducerRecordWithTransaction(
+        produceNewRecordWithTransaction(
                 productProducer,
                 new ProducerRecord<>(PRODUCTS.name(), id, p),
                 response,
@@ -269,7 +269,7 @@ public class OrdersService extends AbstractWebService {
             product.setAvailable(patch.isAvailable());
 
             // Send record and respond when finished
-            sendProducerRecordWithTransaction(
+            produceNewRecordWithTransaction(
                     productProducer,
                     new ProducerRecord<>(PRODUCTS.name(), id, product),
                     response,

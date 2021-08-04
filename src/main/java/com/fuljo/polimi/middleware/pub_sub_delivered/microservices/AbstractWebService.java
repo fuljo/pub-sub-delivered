@@ -115,47 +115,48 @@ public abstract class AbstractWebService extends AbstractService {
     /**
      * Send a producer record using a transaction, as part of a REST request.
      * <p>
-     * Also provides safe handling of some Kafka exceptions.
+     * Should be used only when creating new, fresh records, e.g. as part of a POST request by a user.
+     * </p>
+     * <p>
+     * If producing new records as a result of consuming and transforming previous records, you should also commit
+     * the offsets of those records as part of the transaction.
+     * </p>
+     * This method also takes care of handling send/commit errors.
      *
-     * @param producer kafka producer
-     * @param record record to send
-     * @param asyncResponse suspended async response for the REST request
-     * @param successCallback will be called when the record has been successfully sent to produce a response
-     * @param <K> key type
-     * @param <V> value type
+     * @param producer        kafka producer
+     * @param record          record to send
+     * @param asyncResponse   suspended async response for the REST request
+     * @param successCallback will be called when the record has been committed, to produce a response
+     * @param <K>             key type
+     * @param <V>             value type
      */
-    protected <K, V> void sendProducerRecordWithTransaction(KafkaProducer<K, V> producer,
-                                                            ProducerRecord<K, V> record,
-                                                            AsyncResponse asyncResponse,
-                                                            Callable<Response> successCallback) {
+    protected <K, V> void produceNewRecordWithTransaction(KafkaProducer<K, V> producer,
+                                                          ProducerRecord<K, V> record,
+                                                          AsyncResponse asyncResponse,
+                                                          Callable<Response> successCallback) {
         try {
             // Start transaction
             producer.beginTransaction();
-            // Send with callback
-            producer.send(record, ((recordMetadata, e) -> {
-                // This is a callback after the record has been inserted
-                if (e != null) { // exception
-                    throw new WebServiceException(e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
-                } else { // successfully inserted into topic
-                    // Respond to the request
-                    try {
-                        asyncResponse.resume(successCallback.call());
-                    } catch (Exception ex) {
-                        log.error("Error when generating resource", ex);
-                        throw new WebServiceException(ex.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
-                    }
-                }
-            }));
+            // Send and block
+            producer.send(record).get();
+            // Commit: any error during send or commit will throw an exception (guaranteed by Producer API)
             producer.commitTransaction();
+            // If we got here, everything went fine
+            asyncResponse.resume(successCallback.call());
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // Unrecoverable exception => close the service
             log.error("The producer suffered an unrecoverable error, stopping service " + SERVICE_APP_ID, e);
             this.stop();
+            throw new WebServiceException(e.getMessage());
             // TODO: Maybe exit(1)
         } catch (KafkaException e) {
-            // Abort transaction and try again
-            log.warn("Sending record \"" + record + "\" aborted", e);
+            // Something went wrong while sending or committing
+            log.warn("Transaction for record \"" + record + "\" aborted", e);
             producer.abortTransaction();
+            throw new WebServiceException(e.getMessage());
+        } catch (Exception e) {
+            log.error("Error after committing transaction", e);
+            throw new WebServiceException(e.getMessage());
         }
     }
 }
