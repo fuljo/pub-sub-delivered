@@ -1,6 +1,7 @@
 package com.fuljo.polimi.middleware.pub_sub_delivered.users;
 
 import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.ValidationException;
+import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.WebServiceException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.ServiceUtils;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
@@ -121,20 +122,12 @@ public class UsersService extends AbstractWebService {
             final UserBean user,
             @QueryParam("timeout") @DefaultValue(CALL_TIMEOUT) final Long timeout,
             @Suspended final AsyncResponse response
-    ) {
+    ) throws ValidationException {
         // Set the timeout
         setResponseTimeout(response, timeout);
 
         // Validate user data
-        try {
-            validateUser(user);
-        } catch (ValidationException e) {
-            response.resume(Response
-                    .status(Response.Status.BAD_REQUEST)
-                    .entity(e.getMessage())
-                    .build());
-            return;
-        }
+        validateUser(user);
 
         // Create the user if another one with the same name does not exist
         String id = user.getId();
@@ -147,7 +140,7 @@ public class UsersService extends AbstractWebService {
                 userProducer.send(new ProducerRecord<>(USERS.name(), id, u), (recordMetadata, e) -> {
                     // This is a callback after the record has been inserted and committed
                     if (e != null) { // exception
-                        response.resume(e.getMessage());
+                        throw new WebServiceException(e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
                     } else { // user successfully created
                         try {
                             response.resume(Response
@@ -157,7 +150,7 @@ public class UsersService extends AbstractWebService {
                                     .entity(UserBean.toBean(u))
                                     .build());
                         } catch (URISyntaxException ex) {
-                            response.resume(ex.getMessage());
+                            throw new WebServiceException(ex.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);
                         }
                     }
                 });
@@ -173,11 +166,7 @@ public class UsersService extends AbstractWebService {
                 userProducer.abortTransaction();
             }
         } else { // user exists => error
-            response.resume(
-                    Response.status(Response.Status.BAD_REQUEST)
-                            .entity("User \"" + id + "\" already exists")
-                            .build()
-            );
+            throw new WebServiceException("User already exists", Response.Status.CONFLICT);
         }
     }
 
@@ -197,7 +186,7 @@ public class UsersService extends AbstractWebService {
         if (user != null) { // user found
             return Response.ok(UserBean.toBean(user)).build();
         } else { // user not found
-            return Response.status(Response.Status.NOT_FOUND).entity("User not found").build();
+            throw new WebServiceException("User not found", Response.Status.NOT_FOUND);
         }
     }
 
@@ -221,7 +210,7 @@ public class UsersService extends AbstractWebService {
             // Generate cookie with auth token
             return Response.ok().cookie(ServiceUtils.generateAuthCookie(id)).build();
         } else { // not authorized
-            return Response.status(Response.Status.UNAUTHORIZED).entity("User not found").build();
+            throw new WebServiceException("Login failed: user does not exist", Response.Status.UNAUTHORIZED);
         }
     }
 
@@ -236,7 +225,7 @@ public class UsersService extends AbstractWebService {
         if (!USER_ID_PATTERN.matcher(user.getId()).matches()) {
             throw new ValidationException(
                     "Invalid User: The user id shall be between 5 and 20 characters long. " +
-                    "Only alphanumerical characters, hyphens and underscores are allowed");
+                            "Only alphanumerical characters, hyphens and underscores are allowed");
         }
         // Validate name
         if (user.getName().trim().length() == 0) {

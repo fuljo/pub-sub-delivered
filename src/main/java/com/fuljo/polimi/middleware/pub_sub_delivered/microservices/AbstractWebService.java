@@ -54,6 +54,8 @@ public abstract class AbstractWebService extends AbstractService {
         final ResourceConfig rc = new ResourceConfig();
         rc.register(resource);
         rc.register(JacksonFeature.class);
+        // Automatically discover exceptions
+        rc.packages("com.fuljo.polimi.middleware.pub_sub_delivered.exceptions");
 
         // Initialize the servlet container and holder
         final ServletContainer sc = new ServletContainer(rc);
