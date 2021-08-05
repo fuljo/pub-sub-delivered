@@ -6,7 +6,7 @@
     "symbols": [
       "CREATED",
       "VALIDATED",
-      "READY",
+      "SHIPPING",
       "SHIPPED",
       "FAILED"
     ]

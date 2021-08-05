@@ -70,9 +70,7 @@ public class Schemas {
         public final static Map<String, Topic<?, ?>> ALL = new HashMap<>();
         public static Topic<String, User> USERS;
         public static Topic<String, Product> PRODUCTS;
-        public static Topic<String, Order> ORDERS_CREATED;
-        public static Topic<String, Order> ORDERS_FAILED;
-        public static Topic<String, Order> ORDERS_VALIDATED;
+        public static Topic<String, Order> ORDERS;
 
         static {
             createTopics();
@@ -83,12 +81,8 @@ public class Schemas {
             ALL.put("users", USERS);
             PRODUCTS = new Topic<>("products", Serdes.String(), new SpecificAvroSerde<>());
             ALL.put("products", PRODUCTS);
-            ORDERS_CREATED = new Topic<>("orders-created", Serdes.String(), new SpecificAvroSerde<>());
-            ALL.put("orders-created", ORDERS_CREATED);
-            ORDERS_FAILED = new Topic<>("orders-failed", Serdes.String(), new SpecificAvroSerde<>());
-            ALL.put("orders-failed", ORDERS_FAILED);
-            ORDERS_VALIDATED = new Topic<>("orders-validated", Serdes.String(), new SpecificAvroSerde<>());
-            ALL.put("orders-validated", ORDERS_VALIDATED);
+            ORDERS = new Topic<>("orders", Serdes.String(), new SpecificAvroSerde<>());
+            ALL.put("orders", ORDERS);
         }
     }
 

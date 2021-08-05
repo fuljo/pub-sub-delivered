@@ -33,6 +33,7 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.*;
@@ -72,16 +73,16 @@ public class OrdersService extends AbstractWebService {
         // Create the producer for orders
         orderProducer = createTransactionalProducer(
                 bootstrapServers,
-                String.format("%s-%s", SERVICE_APP_ID, "orders"),
-                String.format("%s-%s-%s", SERVICE_APP_ID, "orders", replicaId),
-                ORDERS_CREATED.keySerde(), ORDERS_CREATED.valueSerde(),
+                String.format("%s-%s", SERVICE_APP_ID, ORDERS.name()),
+                String.format("%s-%s-%s", SERVICE_APP_ID, ORDERS.name(), replicaId),
+                ORDERS.keySerde(), ORDERS.valueSerde(),
                 defaultConfig);
 
         // Define the streams' topology
         StreamsBuilder builder = new StreamsBuilder();
         createMaterializedView(builder, USERS, USERS_STORE_NAME);
         createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME);
-        // TODO: Create materialized view of orders
+        createMaterializedView(builder, ORDERS, ORDERS_STORE_NAME);
 
         // Build and start the streams
         streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
@@ -130,6 +131,15 @@ public class OrdersService extends AbstractWebService {
      */
     private ReadOnlyKeyValueStore<String, Product> productsStore() {
         return streams.store(StoreQueryParameters.fromNameAndType(PRODUCTS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+    }
+
+    /**
+     * Returns the orders' store
+     *
+     * @return read-only key-value store
+     */
+    private ReadOnlyKeyValueStore<String, Order> ordersStore() {
+        return streams.store(StoreQueryParameters.fromNameAndType(ORDERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
     }
 
     /**
@@ -317,10 +327,10 @@ public class OrdersService extends AbstractWebService {
         // Check that the user has customer privileges
         final User customer = AuthenticationHelper.authenticateUser(usersStore(), authCookie, UserRole.CUSTOMER);
 
-        // Generate new unique id for the order
-        final String id = generateNewOrderId();
         // The order will belong to the current customer
         final String customerId = customer.getId().toString();
+        // Generate new unique id for the order
+        final String id = generateNewOrderId(customerId);
         // Calculate total price and check that products exist
         final double totalPrice;
         try {
@@ -346,11 +356,11 @@ public class OrdersService extends AbstractWebService {
         // Send record and respond when finished
         produceNewRecordWithTransaction(
                 orderProducer,
-                new ProducerRecord<>(ORDERS_CREATED.name(), id, order),
+                new ProducerRecord<>(ORDERS.name(), id, order),
                 response,
                 () -> Response
                         .created(new URI("/api/orders-service/orders/" + id))
-                        .entity(OrderBean.fromOrder(order))
+                        .entity(OrderBean.toBean(order))
                         .build()
         );
     }
@@ -358,16 +368,103 @@ public class OrdersService extends AbstractWebService {
     /**
      * Generate a new unique id for an order.
      * <p>
-     * This function also checks that the order doesn't already exist in the store
+     * This function also checks that the order doesn't already exist in the store.
+     * <p>
+     * The format of the order id is customerId:uuid,
+     * so we can then do a prefix scan on the store to quickly retrieve orders.
      *
      * @return new order id
      */
-    protected String generateNewOrderId() {
+    protected String generateNewOrderId(String customerId) {
         String id;
         do {
-            id = UUID.randomUUID().toString();
-        } while (false /* TODO: ordersStore().get(uid) != null */);
+            id = String.format("%s:%s", customerId, UUID.randomUUID());
+        } while (ordersStore().get(id) != null);
         return id;
+    }
+
+    /**
+     * HTTP handler to retrieve all the orders for a specific customer.
+     * <p>
+     *
+     * @param authCookie authentication cookie, must belong to a customer for the operation to succeed
+     */
+    @GET
+    @Path("orders")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getCustomerOrdersHandler(
+            @CookieParam(AuthenticationHelper.AUTH_COOKIE) Cookie authCookie
+    ) {
+        // Check that the user has customer privileges
+        final User customer = AuthenticationHelper.authenticateUser(usersStore(), authCookie, UserRole.CUSTOMER);
+
+        // The order id has a prefix of the format "customerId:"
+        final String prefix = String.format("%s:", customer.getId());
+        Stream<KeyValue<String, Order>> filteredStream; // filtered by prefix
+
+        // Unfortunately, the underlying store may not support prefix scan
+        try { // store supports prefix scan
+            Iterable<KeyValue<String, Order>> iterable = () ->
+                    ordersStore().prefixScan(prefix, ORDERS.keySerde().serializer());
+
+            filteredStream = StreamSupport
+                    // stream from iterator
+                    .stream(iterable.spliterator(), false);
+        } catch (UnsupportedOperationException e) { // prefix scan not supported => filter manually
+            Iterable<KeyValue<String, Order>> iterable = () -> ordersStore().all();
+
+            filteredStream = StreamSupport
+                    // stream from iterator
+                    .stream(iterable.spliterator(), false)
+                    // filter by customer
+                    .filter(kv -> kv.key.startsWith(prefix));
+        }
+
+
+        // Keep only the values and convert them to beans, so they can be serialized
+        List<OrderBean> orders = filteredStream
+                // only retain value
+                .map(kv -> kv.value)
+                // convert to bean, so it can be serialized
+                .map(OrderBean::toBean)
+                // collect to list
+                .collect(Collectors.toList());
+        // Respond with a JSON array
+        return Response.ok(orders).build();
+    }
+
+    /**
+     * HTTP handler to retrieve a specific order.
+     * <p>
+     *
+     * @param id         id of the order to retrieve
+     * @param authCookie authentication cookie, must belong to the customer owning the order for the operation to succeed
+     */
+    @GET
+    @Path("orders/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getOrderHandler(
+            @PathParam("id") final String id,
+            @CookieParam(AuthenticationHelper.AUTH_COOKIE) Cookie authCookie
+    ) {
+        // Check that the user has customer privileges
+        final User customer = AuthenticationHelper.authenticateUser(usersStore(), authCookie, UserRole.CUSTOMER);
+
+        // Get the order
+        final Order order = ordersStore().get(id);
+
+        // Check that the order exists and belongs to the authenticated customer
+        if (order == null) { // not found
+            throw new WebServiceException(
+                    "Order not found", Response.Status.NOT_FOUND);
+        }
+        if (!order.getCustomerId().equals(customer.getId())) { // not owned
+            throw new WebServiceException(
+                    "Order does not belong to the authenticated customer", Response.Status.FORBIDDEN);
+        }
+
+        // Return the order
+        return Response.ok(OrderBean.toBean(order)).build();
     }
 
     /**

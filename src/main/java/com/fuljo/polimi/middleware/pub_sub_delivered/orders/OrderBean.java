@@ -27,7 +27,7 @@ public class OrderBean {
         /**
          * Validated by orders service, address is valid => ready to ship
          */
-        READY,
+        SHIPPING,
         /**
          * Delivery man confirmed shipment to the customer
          */
@@ -133,7 +133,7 @@ public class OrderBean {
         );
     }
 
-    public static OrderBean fromOrder(Order order) {
+    public static OrderBean toBean(Order order) {
         return new OrderBean(
                 order.getId().toString(),
                 order.getCustomerId().toString(),
