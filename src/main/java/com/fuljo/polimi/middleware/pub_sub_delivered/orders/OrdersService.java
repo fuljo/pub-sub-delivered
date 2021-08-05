@@ -15,6 +15,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StoreQueryParameters;
+import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.glassfish.jersey.server.ManagedAsync;
@@ -26,8 +27,10 @@ import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
-import java.security.MessageDigest;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -45,9 +48,7 @@ public class OrdersService extends AbstractWebService {
 
     private KafkaProducer<String, Product> productProducer;
     private KafkaProducer<String, Order> orderProducer;
-    private KafkaStreams usersStreams;
-    private KafkaStreams productsStreams;
-    private KafkaStreams ordersStreams;
+    private KafkaStreams streams;
 
     /**
      * Instantiate the service
@@ -76,11 +77,15 @@ public class OrdersService extends AbstractWebService {
                 ORDERS_CREATED.keySerde(), ORDERS_CREATED.valueSerde(),
                 defaultConfig);
 
-        // Create the streams
-        usersStreams = createMaterializedView(USERS, USERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
-        productsStreams = createMaterializedView(PRODUCTS, PRODUCTS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
+        // Define the streams' topology
+        StreamsBuilder builder = new StreamsBuilder();
+        createMaterializedView(builder, USERS, USERS_STORE_NAME);
+        createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME);
         // TODO: Create materialized view of orders
-        startStreams(new KafkaStreams[]{usersStreams, productsStreams, /* TODO: ordersStreams */}, STREAMS_TIMEOUT);
+
+        // Build and start the streams
+        streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
+        startStreams(new KafkaStreams[]{streams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
         jettyServer = startJetty(port, this);
@@ -92,7 +97,7 @@ public class OrdersService extends AbstractWebService {
     @Override
     public void stop() {
         // Close streams and producers
-        for (AutoCloseable c : new AutoCloseable[]{usersStreams, productsStreams, ordersStreams, productProducer, orderProducer}) {
+        for (AutoCloseable c : new AutoCloseable[]{streams, productProducer, orderProducer}) {
             try {
                 c.close();
             } catch (final Exception e) {
@@ -115,7 +120,7 @@ public class OrdersService extends AbstractWebService {
      * @return read-only key-value store
      */
     private ReadOnlyKeyValueStore<String, User> usersStore() {
-        return usersStreams.store(StoreQueryParameters.fromNameAndType(USERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+        return streams.store(StoreQueryParameters.fromNameAndType(USERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
     }
 
     /**
@@ -124,7 +129,7 @@ public class OrdersService extends AbstractWebService {
      * @return read-only key-value store
      */
     private ReadOnlyKeyValueStore<String, Product> productsStore() {
-        return productsStreams.store(StoreQueryParameters.fromNameAndType(PRODUCTS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+        return streams.store(StoreQueryParameters.fromNameAndType(PRODUCTS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
     }
 
     /**
@@ -290,10 +295,10 @@ public class OrdersService extends AbstractWebService {
      * </ul>
      * since the other fields are automatically filled by this function
      *
-     * @param newOrder the new order to submit
+     * @param newOrder   the new order to submit
      * @param authCookie authentication cookie, must belong to a customer for the operation to succeed
-     * @param timeout timeout for the request
-     * @param response async response
+     * @param timeout    timeout for the request
+     * @param response   async response
      */
     @POST
     @ManagedAsync

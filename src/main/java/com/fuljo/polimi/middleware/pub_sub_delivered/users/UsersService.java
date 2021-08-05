@@ -14,6 +14,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
+import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.glassfish.jersey.server.ManagedAsync;
@@ -39,7 +40,7 @@ public class UsersService extends AbstractWebService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9_!#$%&’*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+$");
 
     private KafkaProducer<String, User> userProducer;
-    private KafkaStreams usersStreams;
+    private KafkaStreams streams;
 
 
     /**
@@ -63,9 +64,13 @@ public class UsersService extends AbstractWebService {
                 USERS.keySerde(), USERS.valueSerde(),
                 defaultConfig);
 
-        // Create the streams
-        usersStreams = createMaterializedView(USERS, USERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
-        startStreams(new KafkaStreams[]{usersStreams}, STREAMS_TIMEOUT);
+        // Create the streams topology
+        StreamsBuilder builder = new StreamsBuilder();
+        createMaterializedView(builder, USERS, USERS_STORE_NAME);
+
+        // Build and start the streams
+        streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
+        startStreams(new KafkaStreams[]{streams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
         jettyServer = startJetty(port, this);
@@ -77,7 +82,7 @@ public class UsersService extends AbstractWebService {
     @Override
     public void stop() {
         // Close streams and producers
-        for (AutoCloseable c : new AutoCloseable[]{usersStreams, userProducer}) {
+        for (AutoCloseable c : new AutoCloseable[]{streams, userProducer}) {
             try {
                 c.close();
             } catch (final Exception e) {
@@ -100,7 +105,7 @@ public class UsersService extends AbstractWebService {
      * @return read-only key-value store
      */
     private ReadOnlyKeyValueStore<String, User> usersStore() {
-        return usersStreams.store(StoreQueryParameters.fromNameAndType(USERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+        return streams.store(StoreQueryParameters.fromNameAndType(USERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
     }
 
     /**

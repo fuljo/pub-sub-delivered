@@ -10,7 +10,9 @@ import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.state.Stores;
 import org.slf4j.Logger;
@@ -214,13 +216,12 @@ public abstract class AbstractService implements Service {
      * Creates a global materialized view of a topic via an in-memory key-value store.
      * The given topic is assumed to be already persisted.
      *
-     * @param topic            the topic
-     * @param storeName        local name for the key-value store
-     * @param bootstrapServers urls of the bootstrap servers
-     * @param defaultConfig    config provided by the  user
-     * @param <K>              key type
-     * @param <V>              value type
-     * @return a kafka streams instance, yet to be started
+     * @param <K>       key type
+     * @param <V>       value type
+     * @param builder   streams builder to use
+     * @param topic     the topic
+     * @param storeName local name for the key-value store
+     * @return a global Kafka Streams Table
      * @implNote We create a GlobalKTable to retrieve the records, which is more costly than a regular KTable.
      * A solution which scales better would be to build a KTable for each partition:
      * <ul>
@@ -232,26 +233,36 @@ public abstract class AbstractService implements Service {
      * @implNote We use a non-persisted in-memory store for the records, since the topic is already persisted,
      * and the resulting table can be computed from it.
      */
-    protected <K, V> KafkaStreams createMaterializedView(Topic<K, V> topic,
-                                                         String storeName,
-                                                         String bootstrapServers,
-                                                         String stateDir,
-                                                         Properties defaultConfig) {
-        // Define topology
-        StreamsBuilder builder = new StreamsBuilder();
-        builder
-                // Materialized view of the users
+    protected <K, V> GlobalKTable<K, V> createMaterializedView(StreamsBuilder builder, Topic<K, V> topic,
+                                                               String storeName) {
+        return builder
+                // Materialized view of the records
                 .globalTable(topic.name(),
                         Consumed.with(topic.keySerde(), topic.valueSerde()),
                         Materialized.as(Stores.inMemoryKeyValueStore(storeName)));
+    }
 
+
+    /**
+     * Create kafka streams for the given topology, with some default configuration values.
+     *
+     * @param topology         the topology for all the streams belonging to this service
+     * @param bootstrapServers urls of bootstrap servers
+     * @param stateDir         directory where to save state
+     * @param defaultConfig    configuration provided by the user
+     * @return a kafka streams instance, not yet started
+     */
+    protected KafkaStreams createStreams(Topology topology,
+                                         String bootstrapServers,
+                                         String stateDir,
+                                         Properties defaultConfig) {
         // Create config
         Properties config = new Properties();
         config.putAll(defaultConfig);
         config.putAll(defaultStreamsConfig(bootstrapServers, stateDir, SERVICE_APP_ID, true));
 
         // Build streams
-        return new KafkaStreams(builder.build(), config);
+        return new KafkaStreams(topology, config);
     }
 
 
@@ -259,7 +270,7 @@ public abstract class AbstractService implements Service {
      * Starts all the instances of streams and waits (in parallel) until they are running
      *
      * @param streamsArray the streams object
-     * @param timeout timeout to wait for the streams to start, in milliseconds
+     * @param timeout      timeout to wait for the streams to start, in milliseconds
      * @throws RuntimeException if the streams take more than timeout to start
      */
     protected void startStreams(KafkaStreams[] streamsArray, Long timeout) {
