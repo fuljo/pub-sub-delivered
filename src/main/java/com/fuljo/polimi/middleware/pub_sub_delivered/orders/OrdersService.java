@@ -6,6 +6,7 @@ import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebSe
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.*;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -16,6 +17,8 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StoreQueryParameters;
 import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.glassfish.jersey.server.ManagedAsync;
@@ -27,10 +30,7 @@ import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,15 +41,16 @@ import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic
 @Path("api/orders-service")
 public class OrdersService extends AbstractWebService {
 
-    private static final String CALL_TIMEOUT = "10000";
-    private static final String USERS_STORE_NAME = "users-store";
-    private static final String PRODUCTS_STORE_NAME = "products-store";
-    private static final String ORDERS_STORE_NAME = "orders-store";
-    private static final Pattern PRODUCT_ID_PATTERN = Pattern.compile("^[\\w_.-]+$");
+    protected static final String CALL_TIMEOUT = "10000";
+    protected static final String USERS_STORE_NAME = "users-store";
+    protected static final String PRODUCTS_STORE_NAME = "products-store";
+    protected static final String ORDERS_STORE_NAME = "orders-store";
+    protected static final Pattern PRODUCT_ID_PATTERN = Pattern.compile("^[\\w_.-]+$");
 
     private KafkaProducer<String, Product> productProducer;
     private KafkaProducer<String, Order> orderProducer;
     private KafkaStreams streams;
+    private KafkaStreams ordersStoreStreams;
 
     /**
      * Instantiate the service
@@ -82,11 +83,17 @@ public class OrdersService extends AbstractWebService {
         StreamsBuilder builder = new StreamsBuilder();
         createMaterializedView(builder, USERS, USERS_STORE_NAME);
         createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME);
-        createMaterializedView(builder, ORDERS, ORDERS_STORE_NAME);
+        createOrderValidationStream(builder);
+
+        // Define a separate topology to provide the orders store,
+        // since we can't have multiple sources connected to the ORDERS topic
+        StreamsBuilder ordersStoreBuilder = new StreamsBuilder();
+        createMaterializedView(ordersStoreBuilder, ORDERS, ORDERS_STORE_NAME);
 
         // Build and start the streams
         streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
-        startStreams(new KafkaStreams[]{streams}, STREAMS_TIMEOUT);
+        ordersStoreStreams = createStreams(ordersStoreBuilder.build(), bootstrapServers, stateDir, defaultConfig);
+        startStreams(new KafkaStreams[]{streams, ordersStoreStreams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
         jettyServer = startJetty(port, this);
@@ -98,7 +105,7 @@ public class OrdersService extends AbstractWebService {
     @Override
     public void stop() {
         // Close streams and producers
-        for (AutoCloseable c : new AutoCloseable[]{streams, productProducer, orderProducer}) {
+        for (AutoCloseable c : new AutoCloseable[]{streams, ordersStoreStreams, productProducer, orderProducer}) {
             try {
                 c.close();
             } catch (final Exception e) {
@@ -139,7 +146,34 @@ public class OrdersService extends AbstractWebService {
      * @return read-only key-value store
      */
     private ReadOnlyKeyValueStore<String, Order> ordersStore() {
-        return streams.store(StoreQueryParameters.fromNameAndType(ORDERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+        return ordersStoreStreams.store(StoreQueryParameters.fromNameAndType(ORDERS_STORE_NAME, QueryableStoreTypes.keyValueStore()));
+    }
+
+    /**
+     * Create a stream that gets newly created orders, validates them and puts them back in the order topic
+     * <p>
+     * Only CREATED orders are considered from the input stream.
+     * <p>
+     * An order is considered valid if and only if
+     * <ul>
+     *     <li>It contains at least one product</li>
+     *     <li>All of the requested products are available</li>
+     * </ul>
+     * <p>
+     * The state is changed to VALIDATED or FAILED accordingly.
+     *
+     * @param builder streams builder
+     */
+    private void createOrderValidationStream(StreamsBuilder builder) {
+        builder
+                // stream from orders topic (partition-wise)
+                .stream(ORDERS.name(), Consumed.with(ORDERS.keySerde(), ORDERS.valueSerde()))
+                // filter created orders
+                .filter((id, order) -> Objects.equals(order.getState(), OrderState.CREATED))
+                // validate order and change state
+                .transformValues(OrderValidator::new)
+                // send result to topic
+                .to(ORDERS.name(), Produced.with(ORDERS.keySerde(), ORDERS.valueSerde()));
     }
 
     /**
