@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Representation of an order for the REST API
+ */
 public class OrderBean {
 
     public enum State {

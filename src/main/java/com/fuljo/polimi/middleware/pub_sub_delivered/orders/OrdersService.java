@@ -4,10 +4,7 @@ import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.ValidationExcept
 import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.WebServiceException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
-import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Order;
-import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Product;
-import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
-import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.UserRole;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.*;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -29,8 +26,8 @@ import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
-import java.util.List;
-import java.util.Properties;
+import java.security.MessageDigest;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -51,7 +48,6 @@ public class OrdersService extends AbstractWebService {
     private KafkaStreams usersStreams;
     private KafkaStreams productsStreams;
     private KafkaStreams ordersStreams;
-
 
     /**
      * Instantiate the service
@@ -75,16 +71,16 @@ public class OrdersService extends AbstractWebService {
         // Create the producer for orders
         orderProducer = createTransactionalProducer(
                 bootstrapServers,
-                String.format("%s-%s", SERVICE_APP_ID, ORDERS.name()),
-                String.format("%s-%s-%s", SERVICE_APP_ID, ORDERS.name(), replicaId),
-                ORDERS.keySerde(), ORDERS.valueSerde(),
+                String.format("%s-%s", SERVICE_APP_ID, "orders"),
+                String.format("%s-%s-%s", SERVICE_APP_ID, "orders", replicaId),
+                ORDERS_CREATED.keySerde(), ORDERS_CREATED.valueSerde(),
                 defaultConfig);
 
         // Create the streams
         usersStreams = createMaterializedView(USERS, USERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
         productsStreams = createMaterializedView(PRODUCTS, PRODUCTS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
-        ordersStreams = createMaterializedView(ORDERS, ORDERS_STORE_NAME, bootstrapServers, stateDir, defaultConfig);
-        startStreams(new KafkaStreams[]{usersStreams, productsStreams, ordersStreams}, STREAMS_TIMEOUT);
+        // TODO: Create materialized view of orders
+        startStreams(new KafkaStreams[]{usersStreams, productsStreams, /* TODO: ordersStreams */}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
         jettyServer = startJetty(port, this);
@@ -282,6 +278,91 @@ public class OrdersService extends AbstractWebService {
                     .ok(ProductBean.toBean(product))
                     .build());
         }
+    }
+
+    /**
+     * HTTP handler for creating a new order.
+     * <p>
+     * The input JSON object is a reduced version of the order, which only contains
+     * <ul>
+     *     <li>the shipping address</li>
+     *     <li>the list of products with quantities</li>
+     * </ul>
+     * since the other fields are automatically filled by this function
+     *
+     * @param newOrder the new order to submit
+     * @param authCookie authentication cookie, must belong to a customer for the operation to succeed
+     * @param timeout timeout for the request
+     * @param response async response
+     */
+    @POST
+    @ManagedAsync
+    @Path("orders")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
+    public void createOrderHandler(
+            final NewOrderBean newOrder,
+            @CookieParam(AuthenticationHelper.AUTH_COOKIE) Cookie authCookie,
+            @QueryParam("timeout") @DefaultValue(CALL_TIMEOUT) final Long timeout,
+            @Suspended final AsyncResponse response
+    ) {
+        // Set call timeout
+        setResponseTimeout(response, timeout);
+
+        // Check that the user has customer privileges
+        final User customer = AuthenticationHelper.authenticateUser(usersStore(), authCookie, UserRole.CUSTOMER);
+
+        // Generate new unique id for the order
+        final String id = generateNewOrderId();
+        // The order will belong to the current customer
+        final String customerId = customer.getId().toString();
+        // Calculate total price and check that products exist
+        final double totalPrice;
+        try {
+            totalPrice = newOrder.getProducts().entrySet().stream()
+                    // multiply quantity by price
+                    .mapToDouble(e -> e.getValue() * productsStore().get(e.getKey()).getPrice())
+                    // sum everything up
+                    .sum();
+        } catch (NullPointerException e) {
+            throw new WebServiceException("One or more requested products do not exist", Response.Status.BAD_REQUEST);
+        }
+
+        // Create the actual order object
+        final Order order = new Order(
+                id,
+                customerId,
+                newOrder.getShippingAddress(),
+                OrderState.CREATED,
+                new HashMap<>(newOrder.getProducts()),
+                totalPrice
+        );
+
+        // Send record and respond when finished
+        produceNewRecordWithTransaction(
+                orderProducer,
+                new ProducerRecord<>(ORDERS_CREATED.name(), id, order),
+                response,
+                () -> Response
+                        .created(new URI("/api/orders-service/orders/" + id))
+                        .entity(OrderBean.fromOrder(order))
+                        .build()
+        );
+    }
+
+    /**
+     * Generate a new unique id for an order.
+     * <p>
+     * This function also checks that the order doesn't already exist in the store
+     *
+     * @return new order id
+     */
+    protected String generateNewOrderId() {
+        String id;
+        do {
+            id = UUID.randomUUID().toString();
+        } while (false /* TODO: ordersStore().get(uid) != null */);
+        return id;
     }
 
     /**
