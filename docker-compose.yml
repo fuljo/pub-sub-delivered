@@ -9,6 +9,9 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zk-data:/var/lib/zookeeper/data
+      - zk-logs:/var/lib/zookeeper/log
 
   broker-1:
     image: confluentinc/cp-kafka:6.2.0
@@ -16,11 +19,13 @@ services:
     container_name: broker-1
     depends_on:
       - zookeeper
+    restart: on-failure
     ports:
       - "19092:19092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT: 5000
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-1:9092,PLAINTEXT_HOST://localhost:19092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
@@ -29,6 +34,8 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
       KAFKA_LOG4J_TOOLS_ROOT_LOGLEVEL: WARN
+    volumes:
+      - broker-1-data:/var/lib/kafka/data
 
   broker-2:
     image: confluentinc/cp-kafka:6.2.0
@@ -36,11 +43,13 @@ services:
     container_name: broker-2
     depends_on:
       - zookeeper
+    restart: on-failure
     ports:
       - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 2
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT: 5000
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-2:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
@@ -49,6 +58,8 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
       KAFKA_LOG4J_TOOLS_ROOT_LOGLEVEL: WARN
+    volumes:
+      - broker-2-data:/var/lib/kafka/data
 
   schema-registry:
     image: confluentinc/cp-schema-registry:6.2.0
@@ -75,6 +86,7 @@ services:
       - broker-1
       - broker-2
       - schema-registry
+    restart: on-failure
     environment:
       APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.users.UsersService
       APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
@@ -88,6 +100,7 @@ services:
       - broker-1
       - broker-2
       - schema-registry
+    restart: on-failure
     environment:
       APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.orders.OrdersService
       APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
@@ -101,6 +114,7 @@ services:
       - broker-1
       - broker-2
       - schema-registry
+    restart: on-failure
     environment:
       APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.shipping.ShippingService
       APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
@@ -115,3 +129,9 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./web:/srv
+
+volumes:
+  zk-data: {}
+  zk-logs: {}
+  broker-1-data: {}
+  broker-2-data: {}
