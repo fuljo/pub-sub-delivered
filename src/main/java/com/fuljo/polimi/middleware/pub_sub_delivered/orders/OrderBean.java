@@ -119,7 +119,7 @@ public class OrderBean {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, customerId, state, products, totalPrice);
+        return Objects.hash(id, customerId, shippingAddress, state, products, totalPrice);
     }
 
     public static Order fromBean(OrderBean bean) {

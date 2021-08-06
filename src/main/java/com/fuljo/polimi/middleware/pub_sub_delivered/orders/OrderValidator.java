@@ -20,7 +20,7 @@ import org.apache.kafka.streams.state.ValueAndTimestamp;
  * </p>
  * A global products store with name {@link OrdersService#PRODUCTS_STORE_NAME} must be present in the same streams instance.
  */
-public class OrderValidator implements ValueTransformer<Order, Order> {
+class OrderValidator implements ValueTransformer<Order, Order> {
 
     private ReadOnlyKeyValueStore<String, ValueAndTimestamp<Product>> productsStore;
 
