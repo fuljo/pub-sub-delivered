@@ -233,15 +233,17 @@ public class OrdersService extends AbstractWebService {
         String id = product.getId();
 
         // Send record and respond when finished
-        produceNewRecordWithTransaction(
-                productProducer,
-                new ProducerRecord<>(PRODUCTS.name(), id, p),
-                response,
-                () -> Response
-                        .created(new URI("/api/orders-service/products/" + id))
-                        .entity(ProductBean.toBean(p))
-                        .build()
-        );
+        synchronized (productProducer) { // avoid interference between different transactions of the same producer
+            produceNewRecordWithTransaction(
+                    productProducer,
+                    new ProducerRecord<>(PRODUCTS.name(), id, p),
+                    response,
+                    () -> Response
+                            .created(new URI("/api/orders-service/products/" + id))
+                            .entity(ProductBean.toBean(p))
+                            .build()
+            );
+        }
     }
 
     /**
@@ -333,12 +335,14 @@ public class OrdersService extends AbstractWebService {
             product.setAvailable(patch.isAvailable());
 
             // Send record and respond when finished
-            produceNewRecordWithTransaction(
-                    productProducer,
-                    new ProducerRecord<>(PRODUCTS.name(), id, product),
-                    response,
-                    () -> Response.ok(ProductBean.toBean(product)).build()
-            );
+            synchronized (productProducer) { // avoid interference between different transactions of the same producer
+                produceNewRecordWithTransaction(
+                        productProducer,
+                        new ProducerRecord<>(PRODUCTS.name(), id, product),
+                        response,
+                        () -> Response.ok(ProductBean.toBean(product)).build()
+                );
+            }
         } else { // not modified
             // Send patched product as a response
             response.resume(Response
@@ -407,15 +411,17 @@ public class OrdersService extends AbstractWebService {
         );
 
         // Send record and respond when finished
-        produceNewRecordWithTransaction(
-                orderProducer,
-                new ProducerRecord<>(ORDERS.name(), id, order),
-                response,
-                () -> Response
-                        .created(new URI("/api/orders-service/orders/" + id))
-                        .entity(OrderBean.toBean(order))
-                        .build()
-        );
+        synchronized (orderProducer) { // avoid interference between different transactions of the same producer
+            produceNewRecordWithTransaction(
+                    orderProducer,
+                    new ProducerRecord<>(ORDERS.name(), id, order),
+                    response,
+                    () -> Response
+                            .created(new URI("/api/orders-service/orders/" + id))
+                            .entity(OrderBean.toBean(order))
+                            .build()
+            );
+        }
     }
 
     /**

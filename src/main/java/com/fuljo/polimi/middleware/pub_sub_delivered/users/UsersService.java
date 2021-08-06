@@ -141,15 +141,18 @@ public class UsersService extends AbstractWebService {
 
         // Create the user with a transaction
         final User u = UserBean.fromBean(user);
-        produceNewRecordWithTransaction(
-                userProducer,
-                new ProducerRecord<>(USERS.name(), id, u),
-                response,
-                () -> Response
-                        .created(new URI("/api/users-service/users/" + id))
-                        .entity(UserBean.toBean(u))
-                        .build()
-        );
+
+        synchronized (userProducer) { // avoid interference between different transactions of the same producer
+            produceNewRecordWithTransaction(
+                    userProducer,
+                    new ProducerRecord<>(USERS.name(), id, u),
+                    response,
+                    () -> Response
+                            .created(new URI("/api/users-service/users/" + id))
+                            .entity(UserBean.toBean(u))
+                            .build()
+            );
+        }
     }
 
     /**

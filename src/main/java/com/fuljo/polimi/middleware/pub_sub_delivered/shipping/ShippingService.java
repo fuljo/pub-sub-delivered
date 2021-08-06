@@ -261,15 +261,17 @@ public class ShippingService extends AbstractWebService {
                 .setState(OrderState.SHIPPED)
                 .build();
 
-        // Send record and respond when finished
-        produceNewRecordWithTransaction(
-                shipmentProducer,
-                new ProducerRecord<>(SHIPMENTS.name(), id, updatedShipment),
-                response,
-                () -> Response
-                        .ok(ShipmentBean.toBean(updatedShipment))
-                        .build()
-        );
+        synchronized (shipmentProducer) { // avoid interference between different transactions of the same producer
+            // Send record and respond when finished
+            produceNewRecordWithTransaction(
+                    shipmentProducer,
+                    new ProducerRecord<>(SHIPMENTS.name(), id, updatedShipment),
+                    response,
+                    () -> Response
+                            .ok(ShipmentBean.toBean(updatedShipment))
+                            .build()
+            );
+        }
     }
 
     /**
