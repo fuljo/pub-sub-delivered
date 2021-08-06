@@ -33,6 +33,7 @@ import javax.ws.rs.core.Response;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -81,12 +82,12 @@ public class ShippingService extends AbstractWebService {
 
         // Define the streams' topology
         StreamsBuilder builder = new StreamsBuilder();
-        createMaterializedView(builder, USERS, USERS_STORE_NAME);
-        createMaterializedView(builder, SHIPMENTS, SHIPMENTS_STORE_NAME);
+        createMaterializedView(builder, USERS, USERS_STORE_NAME, true);
+        createMaterializedView(builder, SHIPMENTS, SHIPMENTS_STORE_NAME, true);
         createShipmentValidationStream(builder);
 
         // Build and start the streams
-        streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
+        streams = createStreams(builder.build(), bootstrapServers, stateDir, SERVICE_APP_ID, defaultConfig);
         startStreams(new KafkaStreams[]{streams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
@@ -295,7 +296,7 @@ public class ShippingService extends AbstractWebService {
         final String restHostname = cli.getOptionValue("hostname", "localhost");
         final int restPort = Integer.parseInt(cli.getOptionValue("port", "80"));
         final String stateDir = cli.getOptionValue("state-dir", "/tmp/kafka-streams");
-        final String replicaId = cli.getOptionValue("replica-id", "1");
+        final String replicaId = cli.getOptionValue("replica-id", UUID.randomUUID().toString());
         final Properties defaultConfig =
                 buildPropertiesFromConfigFile(cli.getOptionValue("config-file", null));
         final String schemaRegistryUrl = cli.getOptionValue("schema-registry", DEFAULT_SCHEMA_REGISTRY_URL);

@@ -4,6 +4,8 @@ import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Order;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.OrderState;
 import org.apache.kafka.streams.kstream.ValueTransformer;
 import org.apache.kafka.streams.processor.ProcessorContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Kafka Streams Transformer to validate shipments
@@ -20,6 +22,7 @@ import org.apache.kafka.streams.processor.ProcessorContext;
  */
 class ShipmentValidator implements ValueTransformer<Order, Order> {
 
+    private static final Logger log = LoggerFactory.getLogger(ShipmentValidator.class);
 
     @Override
     public void init(ProcessorContext processorContext) {
@@ -28,6 +31,8 @@ class ShipmentValidator implements ValueTransformer<Order, Order> {
 
     @Override
     public Order transform(Order order) {
+        log.debug("Processing order {}", order.getId());
+
         // Does the address match the pattern?
         boolean valid = ShippingService.ADDRESS_PATTERN.matcher(order.getShippingAddress()).matches();
         // Clone instance and set new state

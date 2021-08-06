@@ -84,19 +84,20 @@ public class OrdersService extends AbstractWebService {
 
         // Define the streams' topology
         StreamsBuilder builder = new StreamsBuilder();
-        createMaterializedView(builder, USERS, USERS_STORE_NAME);
-        createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME);
+        createMaterializedView(builder, USERS, USERS_STORE_NAME, true);
+        createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME, true);
         createOrderValidationStream(builder);
         createShipmentStatusUpdateStream(builder);
 
         // Define a separate topology to provide the orders store,
         // since we can't have multiple sources connected to the ORDERS topic
         StreamsBuilder ordersStoreBuilder = new StreamsBuilder();
-        createMaterializedView(ordersStoreBuilder, ORDERS, ORDERS_STORE_NAME);
+        createMaterializedView(ordersStoreBuilder, ORDERS, ORDERS_STORE_NAME, true);
 
         // Build and start the streams
-        streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
-        ordersStoreStreams = createStreams(ordersStoreBuilder.build(), bootstrapServers, stateDir, defaultConfig);
+        streams = createStreams(builder.build(), bootstrapServers, stateDir, SERVICE_APP_ID, defaultConfig);
+        ordersStoreStreams = createStreams(ordersStoreBuilder.build(), bootstrapServers, stateDir,
+                SERVICE_APP_ID + "-orders-store", defaultConfig);
         startStreams(new KafkaStreams[]{streams, ordersStoreStreams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
@@ -567,7 +568,7 @@ public class OrdersService extends AbstractWebService {
         final String restHostname = cli.getOptionValue("hostname", "localhost");
         final int restPort = Integer.parseInt(cli.getOptionValue("port", "80"));
         final String stateDir = cli.getOptionValue("state-dir", "/tmp/kafka-streams");
-        final String replicaId = cli.getOptionValue("replica-id", "1");
+        final String replicaId = cli.getOptionValue("replica-id", UUID.randomUUID().toString());
         final Properties defaultConfig =
                 buildPropertiesFromConfigFile(cli.getOptionValue("config-file", null));
         final String schemaRegistryUrl = cli.getOptionValue("schema-registry", DEFAULT_SCHEMA_REGISTRY_URL);

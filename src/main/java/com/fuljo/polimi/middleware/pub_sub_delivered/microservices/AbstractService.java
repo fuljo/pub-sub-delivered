@@ -122,7 +122,6 @@ public abstract class AbstractService implements Service {
     }
 
 
-
     /**
      * Pre-create topics managed by this service.
      * Blocks until all topics have been created
@@ -238,7 +237,7 @@ public abstract class AbstractService implements Service {
      *
      * @param bootstrapServers     urls of boostrap servers
      * @param stateDir             local directory to checkpoint state
-     * @param appId                id of the whole application
+     * @param appId                identifier for this stream application, will determine the name of the consumer group
      * @param exactlyOnceSemantics whether to use exactly once or at least once
      * @return the configuration
      */
@@ -250,7 +249,6 @@ public abstract class AbstractService implements Service {
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         config.put(StreamsConfig.APPLICATION_ID_CONFIG, appId);
         config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 2); // TODO: Change this
         config.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
         config.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, exactlyOnceSemantics ? "exactly_once" : "at_least_once");
         return config;
@@ -260,11 +258,12 @@ public abstract class AbstractService implements Service {
      * Creates a global materialized view of a topic via an in-memory key-value store.
      * The given topic is assumed to be already persisted.
      *
-     * @param <K>       key type
-     * @param <V>       value type
-     * @param builder   streams builder to use
-     * @param topic     the topic
-     * @param storeName local name for the key-value store
+     * @param <K>        key type
+     * @param <V>        value type
+     * @param builder    streams builder to use
+     * @param topic      the topic
+     * @param storeName  local name for the key-value store
+     * @param persistent
      * @return a global Kafka Streams Table
      * @implNote We create a GlobalKTable to retrieve the records, which is more costly than a regular KTable.
      * A solution which scales better would be to build a KTable for each partition:
@@ -278,12 +277,13 @@ public abstract class AbstractService implements Service {
      * and the resulting table can be computed from it.
      */
     protected <K, V> GlobalKTable<K, V> createMaterializedView(StreamsBuilder builder, Topic<K, V> topic,
-                                                               String storeName) {
+                                                               String storeName, boolean persistent) {
         return builder
                 // Materialized view of the records
                 .globalTable(topic.name(),
                         Consumed.with(topic.keySerde(), topic.valueSerde()),
-                        Materialized.as(Stores.inMemoryKeyValueStore(storeName)));
+                        Materialized.as(persistent ?
+                                Stores.persistentKeyValueStore(storeName) : Stores.inMemoryKeyValueStore(storeName)));
     }
 
 
@@ -293,17 +293,19 @@ public abstract class AbstractService implements Service {
      * @param topology         the topology for all the streams belonging to this service
      * @param bootstrapServers urls of bootstrap servers
      * @param stateDir         directory where to save state
+     * @param appId            identifier for this stream application, will determine the name of the consumer group
      * @param defaultConfig    configuration provided by the user
      * @return a kafka streams instance, not yet started
      */
     protected KafkaStreams createStreams(Topology topology,
                                          String bootstrapServers,
                                          String stateDir,
+                                         String appId,
                                          Properties defaultConfig) {
         // Create config
         Properties config = new Properties();
         config.putAll(defaultConfig);
-        config.putAll(defaultStreamsConfig(bootstrapServers, stateDir, SERVICE_APP_ID, true));
+        config.putAll(defaultStreamsConfig(bootstrapServers, stateDir, appId, true));
 
         // Build streams
         return new KafkaStreams(topology, config);
@@ -327,8 +329,6 @@ public abstract class AbstractService implements Service {
         // Set up the callback for all the streams instances
         log.info("Starting streams...");
         for (KafkaStreams streams : streamsArray) {
-            streams.cleanUp(); // TODO: Remove this in production
-
             // We want to wait until we transition to running
             streams.setStateListener((newState, oldState) -> {
                 if (newState == KafkaStreams.State.RUNNING && oldState != KafkaStreams.State.RUNNING) {

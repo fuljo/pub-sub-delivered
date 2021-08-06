@@ -7,6 +7,8 @@ import org.apache.kafka.streams.kstream.ValueTransformer;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.apache.kafka.streams.state.ValueAndTimestamp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Kafka Streams Transformer to validate orders
@@ -22,6 +24,8 @@ import org.apache.kafka.streams.state.ValueAndTimestamp;
  */
 class OrderValidator implements ValueTransformer<Order, Order> {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderValidator.class);
+
     private ReadOnlyKeyValueStore<String, ValueAndTimestamp<Product>> productsStore;
 
     @Override
@@ -31,6 +35,7 @@ class OrderValidator implements ValueTransformer<Order, Order> {
 
     @Override
     public Order transform(Order order) {
+        log.debug("Processing order {}", order.getId());
         Boolean valid = order.getProducts().keySet().stream()
                 // map each product to its availability value
                 .map(productId -> getProductAvailability(productId.toString()))

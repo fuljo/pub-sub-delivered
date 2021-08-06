@@ -26,10 +26,10 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.*;
-
+import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.USERS;
 
 @Path("api/users-service")
 public class UsersService extends AbstractWebService {
@@ -68,10 +68,10 @@ public class UsersService extends AbstractWebService {
 
         // Create the streams topology
         StreamsBuilder builder = new StreamsBuilder();
-        createMaterializedView(builder, USERS, USERS_STORE_NAME);
+        createMaterializedView(builder, USERS, USERS_STORE_NAME, true);
 
         // Build and start the streams
-        streams = createStreams(builder.build(), bootstrapServers, stateDir, defaultConfig);
+        streams = createStreams(builder.build(), bootstrapServers, stateDir, SERVICE_APP_ID, defaultConfig);
         startStreams(new KafkaStreams[]{streams}, STREAMS_TIMEOUT);
 
         // Start the web server to provide the REST API
@@ -244,7 +244,7 @@ public class UsersService extends AbstractWebService {
         final String restHostname = cli.getOptionValue("hostname", "localhost");
         final int restPort = Integer.parseInt(cli.getOptionValue("port", "80"));
         final String stateDir = cli.getOptionValue("state-dir", "/tmp/kafka-streams");
-        final String replicaId = cli.getOptionValue("replica-id", "1");
+        final String replicaId = cli.getOptionValue("replica-id", UUID.randomUUID().toString());
         final Properties defaultConfig =
                 buildPropertiesFromConfigFile(cli.getOptionValue("config-file", null));
         final String schemaRegistryUrl = cli.getOptionValue("schema-registry", DEFAULT_SCHEMA_REGISTRY_URL);
