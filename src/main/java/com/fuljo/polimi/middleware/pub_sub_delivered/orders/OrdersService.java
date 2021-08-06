@@ -6,7 +6,6 @@ import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebSe
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.*;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
-import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -84,6 +83,7 @@ public class OrdersService extends AbstractWebService {
         createMaterializedView(builder, USERS, USERS_STORE_NAME);
         createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME);
         createOrderValidationStream(builder);
+        createShipmentStatusUpdateStream(builder);
 
         // Define a separate topology to provide the orders store,
         // since we can't have multiple sources connected to the ORDERS topic
@@ -173,6 +173,21 @@ public class OrdersService extends AbstractWebService {
                 // validate order and change state
                 .transformValues(OrderValidator::new)
                 // send result to topic
+                .to(ORDERS.name(), Produced.with(ORDERS.keySerde(), ORDERS.valueSerde()));
+    }
+
+
+    /**
+     * Create a stream that consumes shipments and sets the corresponding status on orders
+     *
+     * @param builder streams builder
+     * @implNote Currently shipments and orders share the same representation, so we perform a simple copy
+     */
+    private void createShipmentStatusUpdateStream(StreamsBuilder builder) {
+        builder
+                // stream from shipments topic (partition-wise)
+                .stream(SHIPMENTS.name(), Consumed.with(SHIPMENTS.keySerde(), SHIPMENTS.valueSerde()))
+                // send to orders
                 .to(ORDERS.name(), Produced.with(ORDERS.keySerde(), ORDERS.valueSerde()));
     }
 
