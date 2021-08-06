@@ -11,6 +11,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StoreQueryParameters;
@@ -19,8 +20,11 @@ import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
+import org.glassfish.jersey.server.ManagedAsync;
 
 import javax.ws.rs.*;
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -210,6 +214,57 @@ public class ShippingService extends AbstractWebService {
 
         // Convert to bean and respond
         return Response.ok(ShipmentBean.toBean(shipment)).build();
+    }
+
+    /**
+     * HTTP handler for notifying a completed shipment.
+     * <p>
+     *
+     * @param id         id of the shipment (same as order)
+     * @param authCookie authentication cookie, must belong to a delivery man to succeed
+     * @param timeout    timeout for the request
+     * @param response   asynchronous response
+     */
+    @POST
+    @ManagedAsync
+    @Path("shipments/{id}/notify-shipped")
+    @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
+    public void notifyShippedHandler(
+            @PathParam("id") final String id,
+            @CookieParam(AuthenticationHelper.AUTH_COOKIE) Cookie authCookie,
+            @QueryParam("timeout") @DefaultValue(CALL_TIMEOUT) Long timeout,
+            @Suspended final AsyncResponse response
+    ) {
+        setResponseTimeout(response, timeout);
+
+        // Check that the user is a delivery man
+        AuthenticationHelper.authenticateUser(usersStore(), authCookie, UserRole.DELIVERY);
+
+        // Get the shipment
+        final Order shipment = shipmentsStore().get(id);
+        if (shipment == null) { // not found
+            throw new WebServiceException("Shipment not found", Response.Status.NOT_FOUND);
+        }
+        if (!Objects.equals(shipment.getState(), OrderState.SHIPPING)) { // invalid state transition
+            throw new WebServiceException(
+                    "The shipment is in state " + shipment.getState() + " where it can't be marked as shipped",
+                    Response.Status.BAD_REQUEST);
+        }
+
+        // Modify the state
+        final Order updatedShipment = Order.newBuilder(shipment)
+                .setState(OrderState.SHIPPED)
+                .build();
+
+        // Send record and respond when finished
+        produceNewRecordWithTransaction(
+                shipmentProducer,
+                new ProducerRecord<>(SHIPMENTS.name(), id, updatedShipment),
+                response,
+                () -> Response
+                        .ok(ShipmentBean.toBean(updatedShipment))
+                        .build()
+        );
     }
 
     /**
