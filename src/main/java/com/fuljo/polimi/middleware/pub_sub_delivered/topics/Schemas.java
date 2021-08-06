@@ -71,6 +71,7 @@ public class Schemas {
         public static Topic<String, User> USERS;
         public static Topic<String, Product> PRODUCTS;
         public static Topic<String, Order> ORDERS;
+        public static Topic<String, Order> SHIPMENTS;
 
         static {
             createTopics();
@@ -83,6 +84,8 @@ public class Schemas {
             ALL.put("products", PRODUCTS);
             ORDERS = new Topic<>("orders", Serdes.String(), new SpecificAvroSerde<>());
             ALL.put("orders", ORDERS);
+            SHIPMENTS = new Topic<>("shipments", Serdes.String(), new SpecificAvroSerde<>());
+            ALL.put("shipments", SHIPMENTS);
         }
     }
 
