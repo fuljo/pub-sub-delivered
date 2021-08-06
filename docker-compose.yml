@@ -66,26 +66,52 @@ services:
       SCHEMA_REGISTRY_ROOT_LOGLEVEL: WARN
       SCHEMA_REGISTRY_TOOLS_ROOT_LOGLEVEL: WARN
 
-  # users-service:
-  #   image: fuljo/pub-sub-delivered
-  #   build: .
-  #   hostname: users-service
-  #   container_name: users-service
-  #   depends_on:
-  #     - broker-1
-  #     - broker-2
-  #     - schema-registry
-  #   environment:
-  #     APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.users.UsersService
-  #     APP_ARGS: " "
+  users-service:
+    image: fuljo/pub-sub-delivered
+    build: .
+    hostname: users-service
+    container_name: users-service
+    depends_on:
+      - broker-1
+      - broker-2
+      - schema-registry
+    environment:
+      APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.users.UsersService
+      APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
 
-  # web:
-  #   image: caddy:alpine
-  #   hostname: web
-  #   container_name: web
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile
-  #     - ./web:/srv
+  orders-service:
+    image: fuljo/pub-sub-delivered
+    build: .
+    hostname: orders-service
+    container_name: orders-service
+    depends_on:
+      - broker-1
+      - broker-2
+      - schema-registry
+    environment:
+      APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.orders.OrdersService
+      APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
+
+  shipping-service:
+    image: fuljo/pub-sub-delivered
+    build: .
+    hostname: shipping-service
+    container_name: shipping-service
+    depends_on:
+      - broker-1
+      - broker-2
+      - schema-registry
+    environment:
+      APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.shipping.ShippingService
+      APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
+
+  web:
+    image: caddy:alpine
+    hostname: web
+    container_name: web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./web:/srv
