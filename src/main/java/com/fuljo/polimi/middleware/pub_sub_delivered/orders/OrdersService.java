@@ -6,6 +6,7 @@ import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebSe
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
 import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.*;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
+import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -63,6 +64,9 @@ public class OrdersService extends AbstractWebService {
 
     @Override
     public void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig) {
+        // Create all topics read or written by this service
+        createTopics(new Topic[]{USERS, ORDERS, PRODUCTS}, bootstrapServers, defaultConfig);
+
         // Create the producer for products
         productProducer = createTransactionalProducer(
                 bootstrapServers,

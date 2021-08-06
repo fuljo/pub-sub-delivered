@@ -3,8 +3,10 @@ package com.fuljo.polimi.middleware.pub_sub_delivered.shipping;
 import com.fuljo.polimi.middleware.pub_sub_delivered.exceptions.WebServiceException;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AbstractWebService;
 import com.fuljo.polimi.middleware.pub_sub_delivered.microservices.AuthenticationHelper;
-import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.*;
-import com.fuljo.polimi.middleware.pub_sub_delivered.orders.OrdersService;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.Order;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.OrderState;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.User;
+import com.fuljo.polimi.middleware.pub_sub_delivered.model.avro.UserRole;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -66,6 +68,9 @@ public class ShippingService extends AbstractWebService {
 
     @Override
     public void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig) {
+        // Create all topics read or written by this service
+        createTopics(new Schemas.Topic[]{USERS, ORDERS, SHIPMENTS}, bootstrapServers, defaultConfig);
+
         // Create the producer for shipments
         shipmentProducer = createTransactionalProducer(
                 bootstrapServers,

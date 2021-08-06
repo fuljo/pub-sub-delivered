@@ -3,9 +3,12 @@ package com.fuljo.polimi.middleware.pub_sub_delivered.microservices;
 import com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topic;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -23,9 +26,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Abstract class for a microservice
@@ -114,6 +119,45 @@ public abstract class AbstractService implements Service {
                 .addOption(Option.builder("r")
                         .longOpt("replica-id").hasArg().desc("Id to distinguish this replica (e.g. 1)").build())
                 .addOption(Option.builder("h").longOpt("help").hasArg(false).desc("Show help").build());
+    }
+
+
+
+    /**
+     * Pre-create topics managed by this service.
+     * Blocks until all topics have been created
+     *
+     * @param topics           topics to be created
+     * @param bootstrapServers urls of bootstrap servers
+     * @param defaultConfig    configuration provided by the user
+     */
+    protected void createTopics(Topic<?, ?>[] topics, String bootstrapServers, Properties defaultConfig) {
+        // Create admin client
+        Properties config = new Properties();
+        config.putAll(defaultConfig);
+        config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        Admin admin = AdminClient.create(config);
+
+        // Create topics
+        Collection<NewTopic> newTopics = Arrays.stream(topics)
+                .map(t -> new NewTopic(t.name(), Optional.empty(), Optional.empty()))
+                .collect(Collectors.toList());
+        CreateTopicsResult result = admin.createTopics(newTopics);
+
+        // Wait until all topics have been created, fail otherwise
+        for (Map.Entry<String, KafkaFuture<Void>> entry : result.values().entrySet()) {
+            try {
+                entry.getValue().get();
+            } catch (InterruptedException e) {
+                log.error("Interrupted while waiting for topic creation");
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException e) {
+                if (!(e.getCause() instanceof TopicExistsException)) {
+                    log.error("Error while creating topic " + entry.getKey(), e.getCause());
+                    throw new RuntimeException(e.getCause());
+                }
+            }
+        }
     }
 
     /**

@@ -28,7 +28,7 @@ import java.net.URI;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
-import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.USERS;
+import static com.fuljo.polimi.middleware.pub_sub_delivered.topics.Schemas.Topics.*;
 
 
 @Path("api/users-service")
@@ -55,6 +55,8 @@ public class UsersService extends AbstractWebService {
 
     @Override
     public void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig) {
+        // Create all topics read or written by this service
+        createTopics(new Schemas.Topic[]{USERS}, bootstrapServers, defaultConfig);
 
         // Create the producer
         userProducer = createTransactionalProducer(
