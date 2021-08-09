@@ -1,3 +1,32 @@
 \section{Introduction}
 \label{sec:intro}
 
+We consider a food delivery application with three types of users:
+\begin{itemize}[noitemsep]
+    \item \textbf{Customers}: can place orders and check their status 
+    \item \textbf{Administrators}: can insert new products and change their availability
+    \item \textbf{Delivery men}: can notify the successful delivery of an order that was in the shipping phase 
+\end{itemize}
+Each user has an identifier (string), a full name, an email, a shipping address and a \emph{role} (one of the categories above).
+
+A \emph{product} has an identifier (string), a name, a description, a unitary price and might be available or not.
+An \emph{order} is always associated to a \emph{customer}, contains a series of \emph{products} and a quantity for each of them.
+It also has a \emph{state} which can be:
+\begin{itemize}[noitemsep]
+    \item \textbf{Created}: the order has just been created by the user, not yet processed 
+    \item \textbf{Validated}: the order contains at least one product, and each product is available 
+    \item \textbf{Shipping}: the order has been validated, and its shipping address is also valid, so it is being shipped to the customer
+    \item \textbf{Shipped}: the order has been successfully shipped to the customer
+    \item \textbf{Failed}: the order did not pass one of the validation steps
+\end{itemize}
+
+The application is divided into three microservices, that provide a REST interface to the frontend, which might be a native application or a web app.
+\begin{itemize}
+    \item The \textbf{Users} service provides facilities to register/view the users (of any kind) 
+    \item The \textbf{Orders} service enables \emph{customers} to place orders and view their status, \emph{administrators} to insert products and change their availability.
+    In the background, it also validates created orders and monitors the status of shipments to update the status of the orders.
+    \item The \textbf{Shipping} service enables \emph{delivery men} to notify the delivery of orders, and it checks the address of orders before making them available for shipping.
+\end{itemize}
+
+We use Apache Kafka as the underlying framework to handle inter-service communication, as well as providing persistency and fault-tolerance to the application data.
+In the following sections we provide a more in-depth look at how the application is designed internally, as well as the interface it exposes.
