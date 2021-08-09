@@ -1,0 +1,49 @@
+%------------------------------------------------
+%	Title page
+%------------------------------------------------
+\sffamily
+\centering
+\makeatletter
+
+\Large\includegraphics[height=5.8\baselineskip]{polimi_logo_centered_bw}
+
+\vspace{70pt} % Space between the start of the title and the top of the grey box
+
+{\Large\fontseries{l}\selectfont \@subject \\}
+\rule{\linewidth}{3pt}\\
+%\vspace{15pt}
+\sffamily
+% Main title
+{\fontsize{36pt}{48pt}\fontseries{b}\selectfont \@title \\}
+\vspace{12pt}
+{\fontsize{20pt}{24pt}\fontseries{l}\selectfont \@subtitle \\}
+
+\vspace{8pt} % Space between the end of the title and the bottom of the grey box
+
+\rule{\linewidth}{3pt}\\[0.5\baselineskip]
+
+{\Large\fontseries{l}\selectfont
+\href{mailto:serena.allkja@mail.polimi.it}{\color{black} Serena Allkja} \qquad
+\href{mailto:alessandro.fulgini@mail.polimi.it}{\color{black} Alessandro Fulgini} \qquad
+\href{mailto:andrea.micucci@mail.polimi.it}{\color{black} Andrea Micucci} \\
+}
+
+\vfill % Space between the title box and author information
+
+%------------------------------------------------
+%	Author name and information
+%------------------------------------------------
+{
+  \sffamily
+  \large\fontseries{l}\selectfont
+
+  Project \#\@projectno \\[0.5\baselineskip]
+  Referent: \@referent \\
+  
+  % Horizontal line, first argument width, second thickness
+  \rule{32ex}{1pt}
+  
+  \today
+}
+
+\makeatother

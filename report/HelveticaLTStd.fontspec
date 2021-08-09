@@ -1,0 +1,22 @@
+\defaultfontfeatures[HelveticaLTStd]
+{
+  Extension = .otf,
+  UprightFont       = *-Roman,
+  ItalicFont        = *-Obl,
+  FontFace          = {c}{n}{*-Cond},
+  FontFace          = {c}{it}{*-CondObl},
+  FontFace          = {p}{n}{*-Comp},
+  FontFace          = {up}{n}{*-UltraComp},
+  BoldFont          = *-Bold,
+  BoldItalicFont    = *-BoldObl,
+  FontFace          = {bc}{n}{*-BoldCond},
+  FontFace          = {bc}{it}{*-BoldCondObl},
+  FontFace          = {l}{n}{*-Light},
+  FontFace          = {l}{it}{*-LightObl},
+  FontFace          = {lc}{n}{*-LightCond},
+  FontFace          = {lc}{it}{*-LightCondObl},
+  FontFace          = {k}{n}{*-Blk},
+  FontFace          = {k}{it}{*-BlkObl},
+  FontFace          = {kc}{n}{*-BlkCond},
+  FontFace          = {kc}{it}{*-BlkCondObl},
+}
