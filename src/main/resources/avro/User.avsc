@@ -27,6 +27,10 @@
         "type": "string"
       },
       {
+        "name": "address",
+        "type": "string"
+      },
+      {
         "name": "role",
         "type": "UserRole"
       }

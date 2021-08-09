@@ -385,8 +385,9 @@ public class OrdersService extends AbstractWebService {
         // Check that the user has customer privileges
         final User customer = AuthenticationHelper.authenticateUser(usersStore(), authCookie, UserRole.CUSTOMER);
 
-        // The order will belong to the current customer
+        // The order will belong to the current customer and have its address
         final String customerId = customer.getId().toString();
+        final String shippingAddress = customer.getAddress().toString();
         // Generate new unique id for the order
         final String id = generateNewOrderId(customerId);
         // Calculate total price and check that products exist
@@ -405,7 +406,7 @@ public class OrdersService extends AbstractWebService {
         final Order order = new Order(
                 id,
                 customerId,
-                newOrder.getShippingAddress(),
+                shippingAddress,
                 OrderState.CREATED,
                 new HashMap<>(newOrder.getProducts()),
                 totalPrice

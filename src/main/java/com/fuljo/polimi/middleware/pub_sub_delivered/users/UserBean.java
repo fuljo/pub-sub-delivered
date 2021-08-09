@@ -28,6 +28,10 @@ public class UserBean {
      */
     private final String email;
     /**
+     * Street address
+     */
+    private final String address;
+    /**
      * Role
      */
     private final Role role;
@@ -36,10 +40,12 @@ public class UserBean {
     public UserBean(@JsonProperty("id") String id,
                     @JsonProperty("name") String name,
                     @JsonProperty("email") String email,
+                    @JsonProperty("address") String address,
                     @JsonProperty("role") Role role) {
         this.id = id;
         this.name = name;
         this.email = email;
+        this.address = address;
         this.role = role;
     }
 
@@ -58,6 +64,11 @@ public class UserBean {
         return email;
     }
 
+    @JsonGetter("address")
+    public String getAddress() {
+        return address;
+    }
+
     @JsonGetter("role")
     public Role getRole() {
         return role;
@@ -69,20 +80,20 @@ public class UserBean {
         if (o == null || getClass() != o.getClass()) return false;
         UserBean userBean = (UserBean) o;
         return id.equals(userBean.id) && name.equals(userBean.name) && email.equals(userBean.email)
-                && role.equals(userBean.role);
+                && address.equals(userBean.address) && role.equals(userBean.role);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, email, role);
+        return Objects.hash(id, name, email, address, role);
     }
 
     public static UserBean toBean(User user) {
         return new UserBean(user.getId().toString(), user.getName().toString(), user.getEmail().toString(),
-                Role.valueOf(user.getRole().name()));
+                user.getAddress().toString(), Role.valueOf(user.getRole().name()));
     }
 
     public static User fromBean(UserBean bean) {
-        return new User(bean.getId(), bean.getName(), bean.getEmail(), UserRole.valueOf(bean.getRole().name()));
+        return new User(bean.getId(), bean.getName(), bean.getEmail(), bean.getAddress(), UserRole.valueOf(bean.getRole().name()));
     }
 }
