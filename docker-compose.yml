@@ -32,6 +32,7 @@ services:
       - kafka-broker.env
     volumes:
       - broker-1-data:/var/lib/kafka/data
+    command: bash -c "sleep 8; /etc/confluent/docker/run"
 
   broker-2:
     image: confluentinc/cp-kafka:6.2.0
@@ -52,6 +53,7 @@ services:
       - kafka-broker.env
     volumes:
       - broker-2-data:/var/lib/kafka/data
+    command: bash -c "sleep 8; /etc/confluent/docker/run"
 
   schema-registry:
     image: confluentinc/cp-schema-registry:6.2.0
@@ -69,6 +71,7 @@ services:
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       SCHEMA_REGISTRY_ROOT_LOGLEVEL: WARN
       SCHEMA_REGISTRY_TOOLS_ROOT_LOGLEVEL: WARN
+    command: bash -c "sleep 12; /etc/confluent/docker/run"
 
   users-service:
     image: fuljo/pub-sub-delivered
@@ -83,6 +86,7 @@ services:
     environment:
       APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.users.UsersService
       APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
+    command: bash -c "sleep 20; ./docker-cmd.sh"
 
   orders-service:
     image: fuljo/pub-sub-delivered
@@ -97,6 +101,7 @@ services:
     environment:
       APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.orders.OrdersService
       APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
+    command: bash -c "sleep 20; ./docker-cmd.sh"
 
   shipping-service:
     image: fuljo/pub-sub-delivered
@@ -111,6 +116,7 @@ services:
     environment:
       APP_MAIN_CLASS: com.fuljo.polimi.middleware.pub_sub_delivered.shipping.ShippingService
       APP_ARGS: -b "broker-1:9092,broker-2:9092" -s http://schema-registry:8081
+    command: bash -c "sleep 20; ./docker-cmd.sh"
 
   web:
     image: caddy:alpine
