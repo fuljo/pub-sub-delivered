@@ -65,7 +65,7 @@ public class OrdersService extends AbstractWebService {
     @Override
     public void start(String bootstrapServers, String stateDir, String replicaId, Properties defaultConfig) {
         // Create all topics read or written by this service
-        createTopics(new Topic[]{USERS, ORDERS, PRODUCTS}, bootstrapServers, defaultConfig);
+        createTopics(new Topic[]{USERS, ORDERS, PRODUCTS, SHIPMENTS}, bootstrapServers, defaultConfig);
 
         // Create the producer for products
         productProducer = createTransactionalProducer(
