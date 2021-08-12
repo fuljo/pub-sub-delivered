@@ -88,6 +88,7 @@ If we choose to use a \emph{KTable} we will create a consumer group for each mic
     \item The replica that receives the request performs the query locally and forwards them to all the other replicas, then it waits for the responses and aggregates the results.
 \end{enumerate}
 
+\noindent
 Notice that in our application one might need to query a table for two reasons:
 \begin{itemize}
     \item To directly provide a response to the user, i.e. when answering a \texttt{GET} request for users, products, orders or shipments. In these cases we might be able to use some clever partitioning and employ strategy (1).
@@ -98,3 +99,7 @@ In this spirit, we think that the tables for \emph{users} and \emph{products} sh
 The \emph{orders} can be partitioned by customer. The key is \texttt{customerId:uuid} so, if we partition based on the hash of \texttt{customerId}, when a customer asks for all of his orders, we can then ask Kafka's metadata service for the location of key \texttt{"customerId:"} and be sure that such replica will contain all the orders for that customer.
 
 Currently, there is no distinction between \emph{shipments} and orders. However, if the system is to scale, we expect that a shipment will be assigned to a specific delivery man, therefore we can partition the topic by \texttt{deliveryManId}, similarly to before.
+
+\todo[inline]{Add explanation of how we achieve fault tolerance}
+\todo[inline]{Compare and contrast in memory vs. persisted state stores (?)}
+\todo[inline]{Add reference for the REST API}
