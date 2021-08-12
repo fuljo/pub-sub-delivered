@@ -70,3 +70,31 @@ In the diagram of figure~\ref{fig:dataflow_diagram_2} we can distinguish two mod
     \end{enumerate*}
     We also need to configure the streams to use exactly-once semantics to get the transactional behavior we previously described.
 \end{itemize}
+\pagebreak
+
+\subsection{Tables and state stores}
+
+As we previously mentioned we often need to query our topics as \emph{tables}, similarly to what we would do in a database. Kafka Streams provides the facilities to read such tables from topics, treating them as update logs.
+These tables are \emph{materialized} by state stores, which are built locally on the clients (our microservices).
+
+There are two choices, w.r.t.\ partitioning: a \emph{KTable} is populated from a single partition of a topic, while a \emph{GlobalKTable} is populated from all partitions.
+In our application — since each service might be replicated — we always need a global view on things, so we always used \emph{GlobalKTables}.
+
+This choice ensures that all data that might be needed is always locally available in each replica, but at the cost of keeping it in memory/disk. We are aware that this limits the scalability of the system, so we'll take a look at how the design can be improved.
+
+If we choose to use a \emph{KTable} we will create a consumer group for each microservice, so that each replica of that microservice gets a partition. Since we want each replica to be able to answer any query from the outside, we have two possibilities:
+\begin{enumerate}
+    \item We partition the data such that the data for each query can be found on a single partition. In this case the replica that receives the request will first determine which replica will be able to answer the query (Kafka provides a metadata service to do this) and forward the request to it, acting as a proxy.
+    \item The replica that receives the request performs the query locally and forwards them to all the other replicas, then it waits for the responses and aggregates the results.
+\end{enumerate}
+
+Notice that in our application one might need to query a table for two reasons:
+\begin{itemize}
+    \item To directly provide a response to the user, i.e. when answering a \texttt{GET} request for users, products, orders or shipments. In these cases we might be able to use some clever partitioning and employ strategy (1).
+    \item As part of another operation, which is true for \emph{products} (to check their availability while validating an order) and for \emph{users} (for authentication). In these cases it is much better to avoid partitioning, since it would likely require to use strategy (2) which slows down the process.
+\end{itemize}
+In this spirit, we think that the tables for \emph{users} and \emph{products} shall not be partitioned in any of the services. By contrast, \emph{orders} and \emph{shipments}, which will likely grow faster, can be efficiently partitioned.
+
+The \emph{orders} can be partitioned by customer. The key is \texttt{customerId:uuid} so, if we partition based on the hash of \texttt{customerId}, when a customer asks for all of his orders, we can then ask Kafka's metadata service for the location of key \texttt{"customerId:"} and be sure that such replica will contain all the orders for that customer.
+
+Currently, there is no distinction between \emph{shipments} and orders. However, if the system is to scale, we expect that a shipment will be assigned to a specific delivery man, therefore we can partition the topic by \texttt{deliveryManId}, similarly to before.
