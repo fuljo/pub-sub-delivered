@@ -84,15 +84,15 @@ public class OrdersService extends AbstractWebService {
 
         // Define the streams' topology
         StreamsBuilder builder = new StreamsBuilder();
-        createMaterializedView(builder, USERS, USERS_STORE_NAME, true);
-        createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME, true);
+        createMaterializedView(builder, USERS, USERS_STORE_NAME, false);
+        createMaterializedView(builder, PRODUCTS, PRODUCTS_STORE_NAME, false);
         createOrderValidationStream(builder);
         createShipmentStatusUpdateStream(builder);
 
         // Define a separate topology to provide the orders store,
         // since we can't have multiple sources connected to the ORDERS topic
         StreamsBuilder ordersStoreBuilder = new StreamsBuilder();
-        createMaterializedView(ordersStoreBuilder, ORDERS, ORDERS_STORE_NAME, true);
+        createMaterializedView(ordersStoreBuilder, ORDERS, ORDERS_STORE_NAME, false);
 
         // Build and start the streams
         streams = createStreams(builder.build(), bootstrapServers, stateDir, SERVICE_APP_ID, defaultConfig);

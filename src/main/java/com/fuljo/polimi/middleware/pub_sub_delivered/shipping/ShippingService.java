@@ -82,8 +82,8 @@ public class ShippingService extends AbstractWebService {
 
         // Define the streams' topology
         StreamsBuilder builder = new StreamsBuilder();
-        createMaterializedView(builder, USERS, USERS_STORE_NAME, true);
-        createMaterializedView(builder, SHIPMENTS, SHIPMENTS_STORE_NAME, true);
+        createMaterializedView(builder, USERS, USERS_STORE_NAME, false);
+        createMaterializedView(builder, SHIPMENTS, SHIPMENTS_STORE_NAME, false);
         createShipmentValidationStream(builder);
 
         // Build and start the streams

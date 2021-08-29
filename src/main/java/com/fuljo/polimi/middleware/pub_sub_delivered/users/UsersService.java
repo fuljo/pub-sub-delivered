@@ -68,7 +68,7 @@ public class UsersService extends AbstractWebService {
 
         // Create the streams topology
         StreamsBuilder builder = new StreamsBuilder();
-        createMaterializedView(builder, USERS, USERS_STORE_NAME, true);
+        createMaterializedView(builder, USERS, USERS_STORE_NAME, false);
 
         // Build and start the streams
         streams = createStreams(builder.build(), bootstrapServers, stateDir, SERVICE_APP_ID, defaultConfig);
