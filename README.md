@@ -2,6 +2,8 @@
 
 A food delivery app demo with Apache Kafka.
 
+For more details see the [project report](https://github.com/fuljo/pub-sub-delivered/releases/download/v1.0.0-pre/psd_report.pdf).
+
 ## Getting started
 
 Follow these steps to run the full cluster (kafka + services) with Docker.
