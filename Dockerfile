@@ -28,8 +28,8 @@ RUN mvn dependency:copy-dependencies && \
 
 # Copy and build the source code
 COPY . ${APP_DIR}
-RUN mvn package & \
-    chmod docker-cmd.sh
+RUN mvn package && \
+    chmod +x docker-cmd.sh 
 
 CMD ["./docker-cmd.sh"]
 

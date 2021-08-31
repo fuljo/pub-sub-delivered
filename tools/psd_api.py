@@ -3,8 +3,8 @@ from requests import Session
 from requests.models import Response
 import json
 
-ENV = "windows"
-if ENV == "windows":
+ENV = "docker"
+if ENV == "local":
     # If you are running the services on the same machine, you need to assign different ports
     USERS_API_URL = 'http://localhost:8082/api/users-service'
     ORDERS_API_URL = 'http://localhost:8083/api/orders-service'
@@ -26,6 +26,7 @@ def register_user(s: Session, id: str, name: str, email: str, address: str, role
     user = {
         'id': id,
         'name': name,
+        'address': address,
         'email': email,
         'role': role
     }
