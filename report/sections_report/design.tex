@@ -100,6 +100,5 @@ The \emph{orders} can be partitioned by customer. The key is \texttt{customerId:
 
 Currently, there is no distinction between \emph{shipments} and orders. However, if the system is to scale, we expect that a shipment will be assigned to a specific delivery man, therefore we can partition the topic by \texttt{deliveryManId}, similarly to before.
 
-\todo[inline]{Add explanation of how we achieve fault tolerance}
-\todo[inline]{Compare and contrast in memory vs. persisted state stores (?)}
-\todo[inline]{Add reference for the REST API}
+\subsection{Fault tolerance}
+Fault tolerance was a main concern during the whole project development. First of all there are two available brokers and all topics have a replication factor of two. Along with that, as previously mentioned, we have transactional producers and consumers with isolation level set to read-committed. This ensures consistency to all our data that is saved into topics, allowing us to completely restore a valid state of a service upon crash.
