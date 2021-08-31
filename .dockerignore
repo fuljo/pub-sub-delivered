@@ -1,0 +1,20 @@
+# IntelliJ IDEA
+.idea/
+out/
+target/
+*.iml
+
+# Git
+.git/
+
+# Docker
+Dockerfile
+
+# User files
+report/
+tools/
+web/
+Caddyfile
+docker-compose.yml
+kafka-broker.env
+README.md
