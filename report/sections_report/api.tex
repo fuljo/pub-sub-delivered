@@ -1,2 +1,410 @@
 \section{API reference}
 \label{sec:api}
+In this section a detailed reference for the REST API exposed by our application is presented. As described in the introduction, the application allows interactions with three different types of users and some of the requests are restricted to a specific role, indicated in the following tables. To be able to validate a user's role, they must be logged in. For demonstration purposes, we used a very simple authentication strategy that includes saving a token in a cookie, still are aware that this is unsafe and not a good practice.
+
+\definecolor{getYellow}{HTML}{ff8c1a}
+\definecolor{getYellowBorder}{HTML}{ffc266}
+\definecolor{getLightYellow}{HTML}{fff5e6}
+\renewcommand{\getGetColor}{getYellow}
+\renewcommand{\getGetBorderColor}{getYellowBorder}
+\renewcommand{\getGetLightColor}{getLightYellow}
+
+\subsection{User Service}
+% POST: /api/users-service/users --> register user
+\begin{apiRoute}{post}{/api/users-service/users}{register a new user}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeRequest}{application/json}
+		\begin{routeRequestBody}
+{
+    'id': 'candice',
+    'name': 'Candice Mayflower',
+    'email': 'candice@gmail.com',
+    'address': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+    'role': 'CUSTOMER'
+}
+		\end{routeRequestBody}
+	\end{routeRequest}
+	\begin{routeResponse}{application/json}
+	    \begin{routeResponseItem}{200}{ok}
+    		\begin{routeResponseItemBody}
+        	\end{routeResponseItemBody} 
+	    \end{routeResponseItem}
+        \begin{routeResponseItem}{409}{error: conflict, already existing user}
+			\begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% POST: /api/users-service/login --> login user
+\begin{apiRoute}{post}{/api/users-service/login}{login user and sets the authentication cookie psd\_auth}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeRequest}{application/x-www-form-urlencoded}
+		\begin{routeRequestBody}
+data = {
+    'user-id': 'candice'
+    }
+		\end{routeRequestBody}
+	\end{routeRequest}
+	\begin{routeResponse}{application/json}
+    	\begin{routeResponseItem}{200}{ok}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+    	\end{routeResponseItem}
+    	\begin{routeResponseItem}{401}{error: unauthorized user}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+    	\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% GET: /api/users-service/users/{id} --> get user with given id
+\begin{apiRoute}{get}{/api/users-service/users/\{id\}}{get user with specified id}
+	\begin{routeParameter}
+		\routeParamItem{id}{id of the user}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+{
+    'id': 'candice',
+    'name': 'Candice Mayflower',
+    'email': 'candice@gmail.com',
+    'address': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+    'role': 'CUSTOMER'
+}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+		\begin{routeResponseItem}{404}{error: user not found}
+		    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+\subsection{Order Service}
+
+% POST: /api/orders-service/products --> creating a product
+\begin{apiRoute}{post}{/api/orders-service/products}{register a new product, to be performed by an authenticated administrator}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeRequest}{application/json}
+		\begin{routeRequestBody}
+{
+    'id': 'apple',
+    'name': 'Apple',
+    'description': 'A delicious red fruit',
+    'price': 1.0,
+    'available': True
+}
+		\end{routeRequestBody}
+	\end{routeRequest}
+	\begin{routeResponse}{application/json}
+	    \begin{routeResponseItem}{200}{ok}
+	        \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+    	\begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+		\begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't an administrator}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+        \begin{routeResponseItem}{409}{error: conflict, already existing product}
+            \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% GET: /api/orders-service/products --> get all products
+\begin{apiRoute}{get}{/api/orders-service/products} {get all products}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+[   {
+        'id': 'apple',
+        'name': 'Apple',
+        'description': 'A delicious red fruit',
+        'price': 1.0,
+        'available': True
+    },
+    {
+        'id': 'banana',
+        'name': 'Banana',
+        'description': 'Provides potassium',
+        'price': 2.0,
+        'available': True
+    },
+    ...
+]
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% GET: /api/orders-service/products/{id} --> get product with given id
+\begin{apiRoute}{get}{/api/orders-service/products/\{id\}}{get product with specified id}
+	\begin{routeParameter}
+		\routeParamItem{id}{id of the product}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+{
+    'id': 'apple',
+    'name': 'Apple',
+    'description': 'A delicious red fruit',
+    'price': 1.0,
+    'available': True
+}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+		\begin{routeResponseItem}{404}{error: product not found}
+		    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% PATCH: /api/orders-service/products/{id} --> modify product with given id
+\begin{apiRoute}{patch}{/api/orders-service/products/\{id\}}{update availability of product with specified id, to be performed by an authenticated administrator}
+	\begin{routeParameter}
+		\routeParamItem{id}{id of the product}
+	\end{routeParameter}
+	\begin{routeRequest}{application/json}
+		\begin{routeRequestBody}
+{
+    'available': False
+}
+		\end{routeRequestBody}
+	\end{routeRequest}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+    		\begin{routeResponseItemBody}
+        	\end{routeResponseItemBody} 
+		\end{routeResponseItem}
+		\begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+		\begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't an administrator}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+		\begin{routeResponseItem}{404}{error: product not found}
+    		\begin{routeResponseItemBody}
+        	\end{routeResponseItemBody} 
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% POST: /api/orders-service/orders --> creating an order
+\begin{apiRoute}{post}{/api/orders-service/orders}{create a new order, to issued by an authenticated customer}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeRequest}{application/json}
+		\begin{routeRequestBody}
+{
+    'products': { 'apple': 1, 
+                   'pizza': 5 }
+}
+		\end{routeRequestBody}
+	\end{routeRequest}
+	\begin{routeResponse}{application/json}
+	    \begin{routeResponseItem}{200}{ok}
+	        \begin{routeResponseItemBody}
+{   'id': 'candice:dc2f313a-588c-4bdf-9ce6-5a79a5de4cc2',
+    'customerId': 'candice',
+    'shippingAddress': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+    'state': 'CREATED',
+    'products': {'apple': 1, 'pizza': 5},
+    'totalPrice': 26.0
+}
+            \end{routeResponseItemBody}
+	    \end{routeResponseItem}
+        \begin{routeResponseItem}{400}{error: bad request, one or more requested products do not exist}
+            \begin{routeResponseItemBody}
+    	    \end{routeResponseItemBody} 
+	    \end{routeResponseItem}
+	    \begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't a customer}
+    	    \begin{routeResponseItemBody}
+		    \end{routeResponseItemBody}
+	    \end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% GET: /api/orders-service/orders --> get all orders of logged in user
+\begin{apiRoute}{get}{/api/orders-service/orders} {get all orders of authenticated customer}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+[
+    {   'id': 'candice:00cce67e-41c6-4b41-bce4-edf39cfdd5a1',
+        'customerId': 'candice',
+        'shippingAddress': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+        'state': 'SHIPPED',
+        'products': {'apple': 1, 'pizza': 5},
+        'totalPrice': 26.0
+    },
+    ...
+]
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't a customer}
+    	    \begin{routeResponseItemBody}
+		    \end{routeResponseItemBody}
+	    \end{routeResponseItem}	
+	\end{routeResponse}
+\end{apiRoute}
+
+% GET: /api/orders-service/orders/{id} --> get specified order
+\begin{apiRoute}{get}{/api/orders-service/orders/\{id\}} {get order with specified id, of authenticated customer}
+	\begin{routeParameter}
+		\routeParamItem{id}{id of the order}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+{   
+    'id': 'candice:00cce67e-41c6-4b41-bce4-edf39cfdd5a1',
+    'customerId': 'candice',
+    'shippingAddress': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+    'state': 'SHIPPED',
+    'products': {'apple': 1, 'pizza': 5},
+    'totalPrice': 26.0
+}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't a customer or order belongs to a different customer from authenticated one}
+    	    \begin{routeResponseItemBody}
+		    \end{routeResponseItemBody}
+	    \end{routeResponseItem}	
+	    \begin{routeResponseItem}{404}{error: order not found}
+    		\begin{routeResponseItemBody}
+        	\end{routeResponseItemBody} 
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+
+\subsection{Shipping Service}
+
+% GET: /api/shipping-service/shipments --> get all shipments
+\begin{apiRoute}{get}{/api/shipping-service/shipments} {get all shipments, to be requested by a delivery man}
+	\begin{routeParameter}
+		\noRouteParameter{no parameter}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+[
+    {   'id': 'candice:00cce67e-41c6-4b41-bce4-edf39cfdd5a1',
+        'customerId': 'candice',
+        'shippingAddress': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+        'state': 'SHIPPING',
+        'products': {'apple': 1, 'pizza': 5},
+        'totalPrice': 26.0
+    },
+    ...
+]
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't a delivery man}
+    	    \begin{routeResponseItemBody}
+		    \end{routeResponseItemBody}
+	    \end{routeResponseItem}	
+	\end{routeResponse}
+\end{apiRoute}
+
+% GET: /api/shipping-service/shipments/{id} --> get specified shipment
+\begin{apiRoute}{get}{/api/shipping-service/shipments/\{id\}} {get shipment with specified id, must be requested by a delivery man}
+	\begin{routeParameter}
+		\routeParamItem{id}{id of the shipment}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+{   
+    'id': 'candice:00cce67e-41c6-4b41-bce4-edf39cfdd5a1',
+    'customerId': 'candice',
+    'shippingAddress': 'piazza Leonardo da Vinci, 32, 20133 Milano MI',
+    'state': 'SHIPPING',
+    'products': {'apple': 1, 'pizza': 5},
+    'totalPrice': 26.0
+}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't a delivery man}
+    	    \begin{routeResponseItemBody}
+		    \end{routeResponseItemBody}
+	    \end{routeResponseItem}	
+	    \begin{routeResponseItem}{404}{error: shipment not found}
+    		\begin{routeResponseItemBody}
+        	\end{routeResponseItemBody} 
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
+
+% POST: /api/shipping-service/shipments/{id}/notify-shipped --> notifying a completed shipment
+\begin{apiRoute}{post}{/api/shipping-service/shipments/\{id\}/notify-shipped} {notifying a completed shipment, must be perfomed by a delivery man}
+	\begin{routeParameter}
+		\routeParamItem{id}{id of the shipment}
+	\end{routeParameter}
+	\begin{routeResponse}{application/json}
+		\begin{routeResponseItem}{200}{ok}
+			\begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\begin{routeResponseItem}{400}{error: bad request, the shipment is in a state that cannot be marked as shipped}
+            \begin{routeResponseItemBody}
+    	    \end{routeResponseItemBody} 
+	    \end{routeResponseItem}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{401}{error: unauthorized user, missing authentication or invalid token}
+    	    \begin{routeResponseItemBody}
+			\end{routeResponseItemBody}
+		\end{routeResponseItem}
+	    \begin{routeResponseItem}{403}{error: forbidden operation, authenticated user isn't a delivery man}
+    	    \begin{routeResponseItemBody}
+		    \end{routeResponseItemBody}
+	    \end{routeResponseItem}	
+	    \begin{routeResponseItem}{404}{error: shipment not found}
+    		\begin{routeResponseItemBody}
+        	\end{routeResponseItemBody} 
+		\end{routeResponseItem}
+	\end{routeResponse}
+\end{apiRoute}
