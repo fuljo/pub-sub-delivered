@@ -9,7 +9,7 @@ In this section a detailed reference for the REST API exposed by our application
 \renewcommand{\getGetBorderColor}{getYellowBorder}
 \renewcommand{\getGetLightColor}{getLightYellow}
 
-\subsection{User Service}
+\subsection{Users Service}
 % POST: /api/users-service/users --> register user
 \begin{apiRoute}{post}{/api/users-service/users}{register a new user}
 	\begin{routeParameter}
@@ -45,9 +45,8 @@ In this section a detailed reference for the REST API exposed by our application
 	\end{routeParameter}
 	\begin{routeRequest}{application/x-www-form-urlencoded}
 		\begin{routeRequestBody}
-data = {
-    'user-id': 'candice'
-    }
+user-id='candice'
+
 		\end{routeRequestBody}
 	\end{routeRequest}
 	\begin{routeResponse}{application/json}
@@ -86,7 +85,8 @@ data = {
 	\end{routeResponse}
 \end{apiRoute}
 
-\subsection{Order Service}
+\pagebreak
+\subsection{Orders Service}
 
 % POST: /api/orders-service/products --> creating a product
 \begin{apiRoute}{post}{/api/orders-service/products}{register a new product, to be performed by an authenticated administrator}
@@ -313,7 +313,7 @@ data = {
 	\end{routeResponse}
 \end{apiRoute}
 
-
+\pagebreak
 \subsection{Shipping Service}
 
 % GET: /api/shipping-service/shipments --> get all shipments
